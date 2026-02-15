@@ -11,6 +11,8 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using System.Text.Json;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using ZettelWeb;
 using ZettelWeb.Background;
 using ZettelWeb.Data;
@@ -198,6 +200,26 @@ using (var scope = app.Services.CreateScope())
 app.UseCors();
 app.UseRateLimiter();
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new()
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var result = new
+        {
+            status = report.Status.ToString(),
+            entries = report.Entries.ToDictionary(
+                e => e.Key,
+                e => new
+                {
+                    status = e.Value.Status.ToString(),
+                    description = e.Value.Description,
+                    data = e.Value.Data
+                })
+        };
+        await JsonSerializer.SerializeAsync(context.Response.Body, result,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+    }
+});
 
 app.Run();
