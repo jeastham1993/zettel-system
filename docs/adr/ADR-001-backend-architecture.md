@@ -103,6 +103,21 @@ Revisit this decision if:
 
 None of these are anticipated in the current spec.
 
+## Lessons Learned (2026-02-15)
+
+- **Use `Migrate()` not `EnsureCreated()`** for database initialization.
+  `EnsureCreated()` is a one-shot operation that silently becomes a no-op on
+  existing databases. In Docker Compose deployments where PostgreSQL pre-creates
+  the database, this caused `42P01: relation "Notes" does not exist` errors
+  at runtime. EF Core Migrations (`Migrate()`) are idempotent and evolvable.
+  See: [DB-001](../../.compound/database/DB-001-ef-core-ensure-created-pitfall.md)
+
+- **PostgreSQL-specific indexes need `migrationBuilder.Sql()`** — partial
+  indexes, GIN full-text indexes, and HNSW vector indexes can't be expressed
+  via `CreateIndex()`. Use raw SQL blocks within migrations for these, and
+  keep config-dependent DDL (e.g., HNSW dimensions) in Program.cs.
+  See: [PAT-001](../../.compound/patterns/PAT-001-ef-core-migrations-with-pgvector.md)
+
 ## Related Decisions
 
 - Database schema design (embedding outbox pattern): documented in the

@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Amazon.BedrockRuntime;
 using Amazon.SQS;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -98,6 +99,16 @@ if (string.Equals(embeddingProvider, "ollama", StringComparison.OrdinalIgnoreCas
     builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
         new OllamaApiClient(new Uri(ollamaUri), embeddingModel));
 }
+else if (string.Equals(embeddingProvider, "bedrock", StringComparison.OrdinalIgnoreCase))
+{
+    var bedrockRegion = builder.Configuration["Embedding:BedrockRegion"];
+    var client = !string.IsNullOrEmpty(bedrockRegion)
+        ? new AmazonBedrockRuntimeClient(Amazon.RegionEndpoint.GetBySystemName(bedrockRegion))
+        : new AmazonBedrockRuntimeClient();
+    var dimensions = builder.Configuration.GetValue<int?>("Embedding:Dimensions");
+    builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
+        client.AsIEmbeddingGenerator(embeddingModel, dimensions));
+}
 else
 {
     var apiKey = builder.Configuration["Embedding:ApiKey"] ?? "";
@@ -139,7 +150,12 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(
+                "http://localhost:5173",
+                "http://localhost:8081")
+            .SetIsOriginAllowed(origin =>
+                builder.Environment.IsDevelopment() &&
+                new Uri(origin).Host is "localhost" or "127.0.0.1" or "10.0.2.2")
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -183,6 +199,6 @@ if (app.Environment.IsDevelopment())
     app.UseCors();
 app.UseRateLimiter();
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").RequireCors();
 
 app.Run();

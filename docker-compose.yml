@@ -20,6 +20,8 @@ services:
   backend:
     build:
       context: ./src/ZettelWeb
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       ConnectionStrings__DefaultConnection: "Host=db;Database=zettelweb;Username=zettel;Password=zettel_dev"
       Otel__Endpoint: "http://aspire-dashboard:18889"

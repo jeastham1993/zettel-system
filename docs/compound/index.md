@@ -9,6 +9,13 @@ Last Updated: 2026-02-14
 | ID | Title | Type | Tags |
 |----|-------|------|------|
 | [DB-001](database/DB-001-ef-core-ensure-created-no-alter.md) | EF Core EnsureCreated Does Not Alter Existing Tables | problem-solution | ef-core, ensureCreated, schema-migration, postgresql |
+| [DB-002](database/DB-002-ef-core-ensure-created-pitfall.md) | EnsureCreated() silently skips table creation | problem-solution | ef-core, migrations, postgresql, docker |
+
+## Patterns
+
+| ID | Title | Type | Tags |
+|----|-------|------|------|
+| [PAT-001](patterns/PAT-001-ef-core-migrations-with-pgvector.md) | EF Core Migrations with pgvector and custom indexes | pattern | ef-core, pgvector, migrations, indexes |
 
 ## Infrastructure
 
