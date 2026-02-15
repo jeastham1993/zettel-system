@@ -2,7 +2,7 @@
 
 Searchable knowledge base of solved problems, patterns, and learnings.
 
-Last Updated: 2026-02-14
+Last Updated: 2026-02-15
 
 ## Database
 
@@ -22,6 +22,12 @@ Last Updated: 2026-02-14
 | ID | Title | Type | Tags |
 |----|-------|------|------|
 | [INFRA-001](infrastructure/INFRA-001-ollama-embedding-context-limit.md) | Ollama Embedding Model Context Length Exceeded | problem-solution | ollama, embedding, nomic-embed-text, truncation |
+
+## Mobile
+
+| ID | Title | Type | Tags |
+|----|-------|------|------|
+| [MOB-001](mobile/MOB-001-mmkv-nitromodules-expo-go.md) | MMKV v4 Requires Development Build (Not Expo Go) | problem-solution | react-native, expo, mmkv, nitro-modules, expo-go, development-build |
 
 ## Frontend
 

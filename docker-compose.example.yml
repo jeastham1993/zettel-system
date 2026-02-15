@@ -30,7 +30,7 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       # CORS settings to allow access
-      Cors__AllowedOrigins__0: "http://localhost:8080"
+      Cors__AllowedOrigins__0: "http://localhost:8081"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`) || PathPrefix(`/health`)"

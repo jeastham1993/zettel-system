@@ -32,7 +32,7 @@ Desktop-only features stay on the web: knowledge graph, import/export,
 re-embed, full WYSIWYG editing, wikilink editing, version history.
 
 Key technology choices:
-- **Expo SDK 53+** (managed workflow)
+- **Expo SDK 54** (development build — required by MMKV's native modules)
 - **Expo Router v4** (file-based navigation with bottom tabs)
 - **TanStack React Query v5** (same data layer as web)
 - **MMKV** (fast local storage for settings + offline capture queue)
@@ -94,6 +94,25 @@ get native UI quality (React Native) not WebView quality (Capacitor).
   serves both web and mobile unchanged)
 - [ADR-003](ADR-003-fleeting-notes-architecture.md): Fleeting notes with
   quick capture (the primary mobile use case)
+
+## Lessons Learned (2026-02-15)
+
+- **MMKV requires a development build, not Expo Go.** `react-native-mmkv` v4
+  uses NitroModules (JSI-based native bridge) which must be compiled into the
+  app binary. Expo Go doesn't include it. Run `npx expo prebuild` and
+  `npx expo run:android` instead of `expo start --android`.
+  See compound doc: [MOB-001](../compound/mobile/MOB-001-mmkv-nitromodules-expo-go.md)
+
+- **The ADR originally said "managed workflow"** but choosing MMKV effectively
+  commits us to the development build workflow. This isn't a downside — it's
+  the same DX with `expo-dev-client` — but it means you need Android Studio
+  SDK or EAS Build from day one, not just for distribution.
+
+- **Cascade failures are deceptive.** When a store module crashes at import
+  time (e.g., MMKV native module missing), every route that transitively
+  imports it fails to export its default component. Expo Router then reports
+  "missing default export" for every route file — which looks like a routing
+  problem, not a native module problem.
 
 ## Notes
 

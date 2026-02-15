@@ -11,7 +11,46 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - run: dotnet restore src/ZettelWeb.Tests/ZettelWeb.Tests.csproj
+
+      - run: dotnet build src/ZettelWeb.Tests/ZettelWeb.Tests.csproj --no-restore
+
+      - run: dotnet test src/ZettelWeb.Tests/ZettelWeb.Tests.csproj --no-build --logger trx --results-directory TestResults
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: TestResults/
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: src/zettel-web-ui/package-lock.json
+
+      - run: npm ci
+        working-directory: src/zettel-web-ui
+
+      - run: npm test
+        working-directory: src/zettel-web-ui
+
   build-and-push:
+    needs: [test-backend, test-frontend]
     runs-on: ubuntu-latest
     permissions:
       contents: read
