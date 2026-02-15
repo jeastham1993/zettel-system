@@ -103,6 +103,11 @@ Revisit this decision if:
 
 None of these are anticipated in the current spec.
 
+Also revisit the CORS policy (`Cors:AllowedOrigins`) if cookie-based authentication
+is added — `AllowAnyOrigin` is incompatible with `AllowCredentials` in ASP.NET Core.
+Bearer token auth (JWT) does not require CORS changes since tokens are not ambient
+credentials.
+
 ## Lessons Learned (2026-02-15)
 
 - **Use `Migrate()` not `EnsureCreated()`** for database initialization.

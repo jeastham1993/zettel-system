@@ -98,7 +98,7 @@ public class SqsPollingBackgroundService : BackgroundService
 
     private async Task ProcessMessageAsync(Message message, CancellationToken cancellationToken)
     {
-        var source = message.MessageAttributes.TryGetValue("source", out var attr)
+        var source = message.MessageAttributes?.TryGetValue("source", out var attr) == true
             ? attr.StringValue
             : null;
 

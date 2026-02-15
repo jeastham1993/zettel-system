@@ -68,11 +68,14 @@ public class SqsPollingBackgroundServiceTests
             MessageId = messageId ?? Guid.NewGuid().ToString(),
             ReceiptHandle = Guid.NewGuid().ToString(),
             Body = JsonSerializer.Serialize(body),
-        };
-        msg.MessageAttributes["source"] = new MessageAttributeValue
-        {
-            DataType = "String",
-            StringValue = source,
+            MessageAttributes = new Dictionary<string, MessageAttributeValue>
+            {
+                ["source"] = new MessageAttributeValue
+                {
+                    DataType = "String",
+                    StringValue = source,
+                },
+            },
         };
         return msg;
     }
@@ -182,11 +185,14 @@ public class SqsPollingBackgroundServiceTests
             MessageId = Guid.NewGuid().ToString(),
             ReceiptHandle = Guid.NewGuid().ToString(),
             Body = "THIS IS NOT JSON",
-        };
-        sqsMessage.MessageAttributes["source"] = new MessageAttributeValue
-        {
-            DataType = "String",
-            StringValue = "email",
+            MessageAttributes = new Dictionary<string, MessageAttributeValue>
+            {
+                ["source"] = new MessageAttributeValue
+                {
+                    DataType = "String",
+                    StringValue = "email",
+                },
+            },
         };
 
         var sqsClient = new FakeSqsClient([sqsMessage]);
@@ -306,11 +312,14 @@ public class SqsPollingBackgroundServiceTests
             MessageId = "poison",
             ReceiptHandle = "poison-handle",
             Body = "NOT VALID JSON",
-        };
-        poisonMessage.MessageAttributes["source"] = new MessageAttributeValue
-        {
-            DataType = "String",
-            StringValue = "email",
+            MessageAttributes = new Dictionary<string, MessageAttributeValue>
+            {
+                ["source"] = new MessageAttributeValue
+                {
+                    DataType = "String",
+                    StringValue = "email",
+                },
+            },
         };
 
         var validPayload = new { from = "james@example.com", subject = "Valid", text = "Valid message" };

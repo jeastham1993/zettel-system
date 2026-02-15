@@ -146,17 +146,17 @@ if (!string.IsNullOrEmpty(sqsQueueUrl))
     healthChecks.AddCheck<SqsPollingHealthCheck>("sqs-polling");
 }
 
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:5173",
-                "http://localhost:8081")
-            .SetIsOriginAllowed(origin =>
-                builder.Environment.IsDevelopment() &&
-                new Uri(origin).Host is "localhost" or "127.0.0.1" or "10.0.2.2")
-            .AllowAnyHeader()
+        if (corsOrigins is ["*"])
+            policy.AllowAnyOrigin();
+        else if (corsOrigins.Length > 0)
+            policy.WithOrigins(corsOrigins);
+
+        policy.AllowAnyHeader()
             .AllowAnyMethod();
     });
 });
@@ -195,10 +195,9 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-if (app.Environment.IsDevelopment())
-    app.UseCors();
+app.UseCors();
 app.UseRateLimiter();
 app.MapControllers();
-app.MapHealthChecks("/health").RequireCors();
+app.MapHealthChecks("/health");
 
 app.Run();

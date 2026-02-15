@@ -1,0 +1,69 @@
+services:
+  traefik:
+    image: traefik:v3.4
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "9010:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  backend:
+    image: ghcr.io/jeastham1993/zettel-system/backend:${VERSION:-latest}
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=db;Database=zettelweb;Username=zettel;Password=zettel_dev"
+      # Optional OTEL endpoint if you want to send OTEL trace, log and metric data to an OpenTelemetry collector.
+      # Otel__Endpoint: "http://host.docker.internal:4317"
+      Embedding__Provider: "${EMBEDDING_PROVIDER:-ollama}"
+      Embedding__ApiKey: "${EMBEDDING_API_KEY:-}"
+      Embedding__Model: "${EMBEDDING_MODEL:-nomic-embed-text}"
+      Embedding__OllamaUrl: "${EMBEDDING_OLLAMA_URL:-http://host.docker.internal:11434}"
+      # Capture settings are if you have deployed the optional capture service and want to enable it. If you don't set these, the capture service will be disabled.
+      Capture__SqsQueueUrl: ${CAPTURE_SQS_QUEUE_URL:-}
+      Capture__SqsRegion: "eu-west-1"
+      Capture__AllowedEmailSenders__0: ${CAPTURE_ALLOWED_EMAIL_SENDERS_0:-}
+      Capture__AllowedTelegramChatIds__0: ${CAPTURE_ALLOWED_TELEGRAM_CHAT_IDS_0:-}
+      Capture__TelegramBotToken: ${TELEGRAM_BOT_TOKEN:-}
+      # Required if you are using the AWS deployed capture service
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      # CORS settings to allow access
+      Cors__AllowedOrigins__0: "http://localhost:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=PathPrefix(`/api`) || PathPrefix(`/health`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.routers.backend.priority=100"
+      - "traefik.http.services.backend.loadbalancer.server.port=8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    image: ghcr.io/jeastham1993/zettel-system/frontend:${VERSION:-latest}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+    depends_on:
+      - backend
+
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: zettelweb
+      POSTGRES_USER: zettel
+      POSTGRES_PASSWORD: zettel_dev
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zettel -d zettelweb"]
+      interval: 2s
+      timeout: 5s
+      retries: 10

@@ -104,3 +104,9 @@ get native UI quality (React Native) not WebView quality (Capacitor).
 - The existing Telegram bot and email capture channels complement the mobile
   app -- they provide capture without opening any app at all
 - Tailscale or WireGuard VPN recommended for access outside the home network
+- **CORS configuration**: Allowed origins are configurable via `Cors:AllowedOrigins`
+  in appsettings or environment variables. Set to `["*"]` to allow any origin, or
+  provide an explicit list (e.g., `["http://localhost:8081"]`). React Native's
+  native `fetch` is not subject to CORS, so this only affects browser-based clients
+  (Expo Web, the Vite web UI in non-proxied mode). In production behind Traefik,
+  the web UI and API share the same origin so CORS is not exercised.
