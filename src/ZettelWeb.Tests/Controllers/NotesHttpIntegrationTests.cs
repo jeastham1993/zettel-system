@@ -77,8 +77,9 @@ public class NotesHttpIntegrationTests : IClassFixture<NotesHttpIntegrationTests
         var response = await _client.GetAsync("/api/notes");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var notes = await response.Content.ReadFromJsonAsync<List<NoteResponse>>();
-        Assert.NotNull(notes);
+        var result = await response.Content.ReadFromJsonAsync<PagedNoteResponse>();
+        Assert.NotNull(result);
+        Assert.NotNull(result.Items);
     }
 
     [Fact]
@@ -133,6 +134,7 @@ public class NotesHttpIntegrationTests : IClassFixture<NotesHttpIntegrationTests
     // ── Test Infrastructure ─────────────────────────────────
 
     private record NoteResponse(string Id, string Title, string Content);
+    private record PagedNoteResponse(List<NoteResponse> Items, int TotalCount);
 
     public class TestApp : WebApplicationFactory<Program>, IAsyncLifetime
     {
