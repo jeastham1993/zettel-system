@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -118,6 +119,10 @@ public partial class EmbeddingBackgroundService : BackgroundService
 
     public async Task ProcessNoteAsync(string noteId, CancellationToken cancellationToken)
     {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("embedding.process");
+        activity?.SetTag("note.id", noteId);
+        var sw = Stopwatch.StartNew();
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ZettelDbContext>();
         var generator = scope.ServiceProvider.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
@@ -163,6 +168,11 @@ public partial class EmbeddingBackgroundService : BackgroundService
 
             _logger.LogInformation("Embedded note {NoteId} with model {Model}",
                 noteId, modelId);
+
+            activity?.SetTag("embedding.model", modelId);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            ZettelTelemetry.EmbeddingsProcessed.Add(1);
+            ZettelTelemetry.EmbeddingDuration.Record(sw.Elapsed.TotalMilliseconds);
         }
         catch (Exception ex)
         {
@@ -172,6 +182,9 @@ public partial class EmbeddingBackgroundService : BackgroundService
             note.EmbedUpdatedAt = DateTime.UtcNow;
 
             _logger.LogError(ex, "Failed to embed note {NoteId}", noteId);
+
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            ZettelTelemetry.EmbeddingsFailed.Add(1);
         }
 
         await db.SaveChangesAsync(cancellationToken);

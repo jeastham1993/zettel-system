@@ -6,6 +6,11 @@ using Microsoft.Extensions.AI;
 using Npgsql;
 using OllamaSharp;
 using OpenAI;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using ZettelWeb;
 using ZettelWeb.Background;
 using ZettelWeb.Data;
 using ZettelWeb.Health;
@@ -15,6 +20,44 @@ using ZettelWeb.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+
+// ── OpenTelemetry ────────────────────────────────────────
+var otelEndpoint = builder.Configuration["Otel:Endpoint"];
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService(ZettelTelemetry.ServiceName))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddSource(ZettelTelemetry.ServiceName)
+            .AddSource("Npgsql")
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation();
+
+        if (!string.IsNullOrEmpty(otelEndpoint))
+            tracing.AddOtlpExporter(o => o.Endpoint = new Uri(otelEndpoint));
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .AddMeter(ZettelTelemetry.ServiceName)
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation();
+
+        if (!string.IsNullOrEmpty(otelEndpoint))
+            metrics.AddOtlpExporter(o => o.Endpoint = new Uri(otelEndpoint));
+    });
+
+builder.Logging.AddOpenTelemetry(logging =>
+{
+    logging.IncludeScopes = true;
+    logging.IncludeFormattedMessage = true;
+    if (!string.IsNullOrEmpty(otelEndpoint))
+    {
+        logging.AddOtlpExporter(o => o.Endpoint = new Uri(otelEndpoint));
+    }
+});
 
 var dataSourceBuilder = new NpgsqlDataSourceBuilder(
     builder.Configuration.GetConnectionString("DefaultConnection"));

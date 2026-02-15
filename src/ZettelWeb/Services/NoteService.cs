@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -63,6 +64,7 @@ public partial class NoteService : INoteService
         NoteType noteType, string? sourceAuthor, string? sourceTitle,
         string? sourceUrl, int? sourceYear, string? sourceType)
     {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("note.create");
         var now = DateTime.UtcNow;
 
         // 17-digit timestamp + 4-digit random suffix = 21 chars, virtually collision-free
@@ -100,11 +102,22 @@ public partial class NoteService : INoteService
 
         await _embeddingQueue.EnqueueAsync(note.Id);
 
+        activity?.SetTag("note.id", note.Id);
+        activity?.SetTag("note.status", status.ToString());
+        activity?.SetTag("note.type", noteType.ToString());
+        activity?.SetStatus(ActivityStatusCode.Ok);
+        ZettelTelemetry.NotesCreated.Add(1,
+            new KeyValuePair<string, object?>("note.status", status.ToString()),
+            new KeyValuePair<string, object?>("note.type", noteType.ToString()));
+
         return note;
     }
 
     public async Task<Note?> GetByIdAsync(string id)
     {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("note.get");
+        activity?.SetTag("note.id", id);
+
         return await _db.Notes
             .AsNoTracking()
             .Include(n => n.Tags)
@@ -115,6 +128,10 @@ public partial class NoteService : INoteService
         NoteStatus? status = null, string? tag = null,
         NoteType? noteType = null)
     {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("note.list");
+        activity?.SetTag("note.skip", skip);
+        activity?.SetTag("note.take", take);
+
         var query = _db.Notes.AsNoTracking().Include(n => n.Tags).AsQueryable();
 
         if (status.HasValue)
@@ -170,6 +187,9 @@ public partial class NoteService : INoteService
         string? sourceUrl = null, int? sourceYear = null,
         string? sourceType = null)
     {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("note.update");
+        activity?.SetTag("note.id", id);
+
         var note = await _db.Notes
             .Include(n => n.Tags)
             .FirstOrDefaultAsync(n => n.Id == id);
@@ -250,6 +270,9 @@ public partial class NoteService : INoteService
 
     public async Task<bool> DeleteAsync(string id)
     {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("note.delete");
+        activity?.SetTag("note.id", id);
+
         var note = await _db.Notes.FindAsync(id);
 
         if (note is null)
@@ -257,6 +280,9 @@ public partial class NoteService : INoteService
 
         _db.Notes.Remove(note);
         await _db.SaveChangesAsync();
+
+        activity?.SetStatus(ActivityStatusCode.Ok);
+        ZettelTelemetry.NotesDeleted.Add(1);
 
         return true;
     }

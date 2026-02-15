@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -133,6 +134,9 @@ public partial class EnrichmentBackgroundService : BackgroundService
 
     public async Task ProcessNoteAsync(string noteId, CancellationToken cancellationToken)
     {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("enrichment.process");
+        activity?.SetTag("note.id", noteId);
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ZettelDbContext>();
 
@@ -157,6 +161,9 @@ public partial class EnrichmentBackgroundService : BackgroundService
             note.EnrichmentJson = JsonSerializer.Serialize(new EnrichmentResult { Urls = [] });
             await db.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Note {NoteId} has no URLs, marked as completed", noteId);
+            activity?.SetTag("enrichment.url_count", 0);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            ZettelTelemetry.EnrichmentsProcessed.Add(1);
             return;
         }
 
@@ -212,6 +219,10 @@ public partial class EnrichmentBackgroundService : BackgroundService
 
             _logger.LogInformation("Enriched note {NoteId} with {UrlCount} URLs",
                 noteId, urlResults.Count);
+
+            activity?.SetTag("enrichment.url_count", urlResults.Count);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            ZettelTelemetry.EnrichmentsProcessed.Add(1);
         }
         catch (Exception ex)
         {
@@ -219,6 +230,9 @@ public partial class EnrichmentBackgroundService : BackgroundService
             note.EnrichRetryCount++;
 
             _logger.LogError(ex, "Failed to enrich note {NoteId}", noteId);
+
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            ZettelTelemetry.EnrichmentsFailed.Add(1);
         }
 
         await db.SaveChangesAsync(cancellationToken);

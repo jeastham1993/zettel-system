@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -31,6 +32,10 @@ public class SearchService : ISearchService
         if (string.IsNullOrWhiteSpace(query))
             return Array.Empty<SearchResult>();
 
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("search.fulltext");
+        activity?.SetTag("search.query_length", query.Length);
+        var sw = Stopwatch.StartNew();
+
         var results = await _db.Database
             .SqlQuery<SearchResult>($"""
                 SELECT "Id" AS "NoteId",
@@ -48,6 +53,12 @@ public class SearchService : ISearchService
                 """)
             .ToListAsync();
 
+        activity?.SetTag("search.result_count", results.Count);
+        ZettelTelemetry.SearchesExecuted.Add(1,
+            new KeyValuePair<string, object?>("search.type", "fulltext"));
+        ZettelTelemetry.SearchDuration.Record(sw.Elapsed.TotalMilliseconds,
+            new KeyValuePair<string, object?>("search.type", "fulltext"));
+
         return results;
     }
 
@@ -55,6 +66,10 @@ public class SearchService : ISearchService
     {
         if (string.IsNullOrWhiteSpace(query))
             return Array.Empty<SearchResult>();
+
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("search.semantic");
+        activity?.SetTag("search.query_length", query.Length);
+        var sw = Stopwatch.StartNew();
 
         var queryVector = await _embeddingGenerator.GenerateVectorAsync(query);
         var queryParam = new Vector(queryVector.ToArray());
@@ -77,6 +92,12 @@ public class SearchService : ISearchService
                 """)
             .ToListAsync();
 
+        activity?.SetTag("search.result_count", results.Count);
+        ZettelTelemetry.SearchesExecuted.Add(1,
+            new KeyValuePair<string, object?>("search.type", "semantic"));
+        ZettelTelemetry.SearchDuration.Record(sw.Elapsed.TotalMilliseconds,
+            new KeyValuePair<string, object?>("search.type", "semantic"));
+
         return results;
     }
 
@@ -84,6 +105,9 @@ public class SearchService : ISearchService
     {
         if (string.IsNullOrWhiteSpace(query))
             return Array.Empty<SearchResult>();
+
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("search.hybrid");
+        activity?.SetTag("search.query_length", query.Length);
 
         // Run sequentially — EF Core DbContext is NOT thread-safe.
         var fullTextResults = await FullTextSearchAsync(query);

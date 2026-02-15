@@ -53,10 +53,23 @@ with pgvector for semantic search.
 - ALTER TABLE migration with IF NOT EXISTS guards
 - 16 new tests, 423 total passing
 
+### Observability (Batch 23)
+- OpenTelemetry SDK with tracing, metrics, and log export
+- Auto-instrumentation: ASP.NET Core, HttpClient, Npgsql
+- Custom spans: note CRUD, search (fulltext/semantic/hybrid),
+  embedding processing, enrichment processing
+- Custom metrics: notes created/deleted, searches executed,
+  embeddings processed/failed, enrichments processed/failed,
+  embedding duration, search duration
+- Configurable OTLP endpoint (`Otel:Endpoint` setting)
+- Aspire Dashboard in docker-compose (port 18888)
+- 13 new telemetry tests, 431 total passing
+
 ### Infrastructure
 - Docker Compose full stack (Traefik + backend + frontend + pgvector)
 - Multi-stage Dockerfiles for backend (.NET) and frontend (nginx)
 - Dev database compose file
+- Aspire Dashboard for local telemetry visualization
 
 ## Architecture Decisions
 
@@ -66,4 +79,7 @@ with pgvector for semantic search.
   Search
 - [ADR-003](adr/ADR-003-fleeting-notes-architecture.md): Fleeting Notes
 - [ADR-004](adr/ADR-004-sqs-webhook-ingestion.md): SQS Webhook Ingestion
-- [ADR-005](adr/ADR-005-structure-notes-sources.md): Structure Notes & Sources
+- [ADR-005](adr/ADR-005-structure-notes-sources.md): Structure Notes
+  & Sources
+- [ADR-006](adr/ADR-006-opentelemetry-observability.md): OpenTelemetry
+  Observability
