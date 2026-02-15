@@ -1,0 +1,128 @@
+@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&display=swap");
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-serif: "Lora", serif;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+}
+
+/* Warm stone palette + amber accent */
+:root {
+  --radius: 0.5rem;
+  /* stone-50 */
+  --background: oklch(0.985 0.002 75);
+  /* stone-900 */
+  --foreground: oklch(0.216 0.006 56.043);
+  /* white with warmth */
+  --card: oklch(0.995 0.001 75);
+  --card-foreground: oklch(0.216 0.006 56.043);
+  --popover: oklch(0.995 0.001 75);
+  --popover-foreground: oklch(0.216 0.006 56.043);
+  /* stone-900 */
+  --primary: oklch(0.216 0.006 56.043);
+  /* stone-50 */
+  --primary-foreground: oklch(0.985 0.002 75);
+  /* stone-100 */
+  --secondary: oklch(0.97 0.003 75);
+  --secondary-foreground: oklch(0.216 0.006 56.043);
+  /* stone-100 */
+  --muted: oklch(0.97 0.003 75);
+  /* stone-500 */
+  --muted-foreground: oklch(0.553 0.013 58);
+  /* amber-700 */
+  --accent: oklch(0.555 0.163 48.998);
+  --accent-foreground: oklch(0.995 0.001 75);
+  /* red-600 */
+  --destructive: oklch(0.577 0.245 27.325);
+  /* stone-200 */
+  --border: oklch(0.923 0.003 73);
+  --input: oklch(0.923 0.003 73);
+  /* amber-700 */
+  --ring: oklch(0.555 0.163 48.998);
+  --chart-1: oklch(0.555 0.163 48.998);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+}
+
+.dark {
+  /* stone-950 */
+  --background: oklch(0.147 0.004 49.25);
+  /* stone-50 */
+  --foreground: oklch(0.985 0.002 75);
+  /* stone-900 */
+  --card: oklch(0.216 0.006 56.043);
+  --card-foreground: oklch(0.985 0.002 75);
+  --popover: oklch(0.216 0.006 56.043);
+  --popover-foreground: oklch(0.985 0.002 75);
+  /* stone-100 */
+  --primary: oklch(0.97 0.003 75);
+  --primary-foreground: oklch(0.216 0.006 56.043);
+  /* stone-800 */
+  --secondary: oklch(0.268 0.007 34.298);
+  --secondary-foreground: oklch(0.985 0.002 75);
+  --muted: oklch(0.268 0.007 34.298);
+  /* stone-400 */
+  --muted-foreground: oklch(0.709 0.01 56);
+  /* amber-700 */
+  --accent: oklch(0.555 0.163 48.998);
+  --accent-foreground: oklch(0.995 0.001 75);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.555 0.163 48.998);
+  --chart-1: oklch(0.555 0.163 48.998);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

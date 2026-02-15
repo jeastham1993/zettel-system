@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ZettelWeb.Tests/ZettelWeb.Tests.csproj" />
+    <Project Path="src/ZettelWeb/ZettelWeb.csproj" />
+  </Folder>
+</Solution>
