@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import DOMPurify from 'dompurify'
 import { useParams, Link } from 'react-router'
 import { ArrowLeft, Clock, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,10 @@ export function VersionsPage() {
   const { data: versions, isLoading, isError } = useVersions(id)
   const [selectedVersionId, setSelectedVersionId] = useState<number | undefined>(undefined)
   const { data: selectedVersion, isLoading: versionLoading } = useVersion(id, selectedVersionId)
+  const sanitizedContent = useMemo(
+    () => selectedVersion ? DOMPurify.sanitize(selectedVersion.content) : '',
+    [selectedVersion?.content]
+  )
 
   if (isLoading) {
     return (
@@ -96,7 +101,7 @@ export function VersionsPage() {
                 <h2 className="mb-4 font-serif text-xl font-bold">{selectedVersion.title}</h2>
                 <div
                   className="prose prose-stone dark:prose-invert max-w-none text-sm"
-                  dangerouslySetInnerHTML={{ __html: selectedVersion.content }}
+                  dangerouslySetInnerHTML={{ __html: sanitizedContent }}
                 />
               </div>
             ) : (

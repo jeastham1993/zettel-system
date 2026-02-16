@@ -27,6 +27,7 @@ function ToolbarButton({ onClick, isActive, label, children }: ToolbarButtonProp
       variant="ghost"
       size="sm"
       aria-label={label}
+      aria-pressed={isActive}
       className={`h-9 w-9 p-0 sm:h-8 sm:w-8 ${isActive ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}
       onClick={onClick}
     >

@@ -319,8 +319,9 @@ Design decisions are documented as ADRs in `docs/adr/`:
 | [002](docs/adr/ADR-002-postgresql-native-search.md) | PostgreSQL for fulltext + vector search (no Elasticsearch) |
 | [003](docs/adr/ADR-003-fleeting-notes-architecture.md) | Fleeting notes with inbox workflow |
 | [004](docs/adr/ADR-004-sqs-webhook-ingestion.md) | SQS for email/Telegram webhook ingestion |
-| [005](docs/adr/ADR-005-mobile-app-strategy.md) | React Native with Expo (not PWA or Capacitor) |
+| [005](docs/adr/ADR-005-structure-notes-sources.md) | Structure Notes & Source Metadata as Flat Columns |
 | [006](docs/adr/ADR-006-opentelemetry-observability.md) | OpenTelemetry for tracing, metrics, and logs |
+| [007](docs/adr/ADR-007-mobile-app-strategy.md) | React Native with Expo (not PWA or Capacitor) |
 
 ## Observability
 

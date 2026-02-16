@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Pgvector;
 using ZettelWeb.Background;
 using ZettelWeb.Data;
@@ -14,13 +15,16 @@ public partial class NoteService : INoteService
     private readonly ZettelDbContext _db;
     private readonly IEmbeddingQueue _embeddingQueue;
     private readonly IEmbeddingGenerator<string, Embedding<float>>? _embeddingGenerator;
+    private readonly ILogger<NoteService>? _logger;
 
     public NoteService(ZettelDbContext db, IEmbeddingQueue embeddingQueue,
-        IEmbeddingGenerator<string, Embedding<float>>? embeddingGenerator = null)
+        IEmbeddingGenerator<string, Embedding<float>>? embeddingGenerator = null,
+        ILogger<NoteService>? logger = null)
     {
         _db = db;
         _embeddingQueue = embeddingQueue;
         _embeddingGenerator = embeddingGenerator;
+        _logger = logger;
     }
 
     [GeneratedRegex(@"https?://[^\s<>""']+")]
@@ -467,9 +471,15 @@ public partial class NoteService : INoteService
                 .Select(r => r.Tag)
                 .ToList();
         }
-        catch
+        catch (InvalidOperationException ex)
         {
             // InMemory provider doesn't support raw SQL with pgvector
+            _logger?.LogWarning(ex, "Tag suggestion query failed for note {NoteId} - returning empty suggestions", noteId);
+            return Array.Empty<string>();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Unexpected error in tag suggestion for note {NoteId}", noteId);
             return Array.Empty<string>();
         }
     }
@@ -508,9 +518,15 @@ public partial class NoteService : INoteService
             return new DuplicateCheckResult(false, null, null,
                 result.Count > 0 ? result[0].Similarity : 0);
         }
-        catch
+        catch (InvalidOperationException ex)
         {
             // InMemory provider doesn't support raw SQL with pgvector
+            _logger?.LogWarning(ex, "Duplicate check query failed - returning not-duplicate");
+            return new DuplicateCheckResult(false, null, null, 0);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Unexpected error in duplicate check");
             return new DuplicateCheckResult(false, null, null, 0);
         }
     }

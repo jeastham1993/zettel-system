@@ -73,7 +73,7 @@ The API surface the mobile app needs:
 
 - [ADR-001](adr/ADR-001-backend-architecture.md): Simple layered backend
 - [ADR-003](adr/ADR-003-fleeting-notes-architecture.md): Fleeting notes
-- [ADR-005](adr/ADR-005-mobile-app-strategy.md): Mobile app strategy
+- [ADR-007](adr/ADR-007-mobile-app-strategy.md): Mobile app strategy
 
 ### Alternatives Not Chosen
 

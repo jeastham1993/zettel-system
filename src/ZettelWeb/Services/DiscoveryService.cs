@@ -17,24 +17,13 @@ public class DiscoveryService : IDiscoveryService
     {
         var cutoff = DateTime.UtcNow.AddDays(-30);
 
-        var candidates = await _db.Notes
+        return await _db.Notes
             .AsNoTracking()
             .Include(n => n.Tags)
             .Where(n => n.UpdatedAt < cutoff)
+            .OrderBy(_ => Guid.NewGuid())
+            .Take(count)
             .ToListAsync();
-
-        if (candidates.Count == 0)
-            return Array.Empty<Note>();
-
-        // Shuffle and take requested count
-        var rng = Random.Shared;
-        for (var i = candidates.Count - 1; i > 0; i--)
-        {
-            var j = rng.Next(i + 1);
-            (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
-        }
-
-        return candidates.Take(count).ToList();
     }
 
     public async Task<IReadOnlyList<Note>> GetOrphansAsync(int count = 3)

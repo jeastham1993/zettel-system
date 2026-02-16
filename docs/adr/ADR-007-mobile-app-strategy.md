@@ -1,4 +1,4 @@
-# ADR-005: Mobile App Strategy
+# ADR-007: Mobile App Strategy
 
 Date: 2026-02-15
 Status: Proposed

@@ -81,7 +81,8 @@ builder.Services.AddScoped<INoteService>(sp =>
     new NoteService(
         sp.GetRequiredService<ZettelDbContext>(),
         sp.GetRequiredService<IEmbeddingQueue>(),
-        sp.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>()));
+        sp.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>(),
+        sp.GetRequiredService<ILogger<NoteService>>()));
 builder.Services.AddScoped<IImportService, ImportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<IGraphService, GraphService>();
@@ -193,10 +194,17 @@ using (var scope = app.Services.CreateScope())
     var dimensions = app.Configuration.GetValue<int>("Embedding:Dimensions");
     if (dimensions > 0 && dimensions <= 4096)
     {
+        // SAFETY: ExecuteSqlRaw with string interpolation is used intentionally here.
+        // DDL statements like CREATE INDEX cannot accept parameterized values for
+        // type definitions (e.g. vector(1536)), so we must inline the dimension value.
+        // The `dimensions` variable is safe: it comes from validated configuration above
+        // (bounded to 1–4096 integer range), not from user input.
+#pragma warning disable EF1003 // Intentional raw SQL for DDL — see safety comment above
         db.Database.ExecuteSqlRaw(
             $"CREATE INDEX IF NOT EXISTS idx_notes_embedding_hnsw " +
             $"ON \"Notes\" USING hnsw ((\"Embedding\"::vector({dimensions})) vector_cosine_ops) " +
             $"WHERE \"Embedding\" IS NOT NULL;");
+#pragma warning restore EF1003
     }
 }
 

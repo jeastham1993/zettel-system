@@ -5,7 +5,7 @@ tags: [react-native, expo, mmkv, nitro-modules, expo-go, development-build, nati
 created: 2026-02-15
 confidence: high
 languages: [typescript, react-native]
-related: [ADR-005]
+related: [ADR-007]
 ---
 
 # MMKV v4 Requires Development Build (Not Expo Go)

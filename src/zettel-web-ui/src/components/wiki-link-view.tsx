@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import DOMPurify from 'dompurify'
 import { Link } from 'react-router'
 import {
   Popover,
@@ -142,28 +143,30 @@ interface WikiLinkViewProps {
 }
 
 export function WikiLinkView({ html, className }: WikiLinkViewProps) {
+  const sanitizedHtml = useMemo(() => DOMPurify.sanitize(html), [html])
+
   const parts = useMemo(() => {
     const segments: Array<{ type: 'text'; html: string } | { type: 'wikilink'; title: string }> = []
     const regex = /\[\[([^\]]+)\]\]/g
     let lastIndex = 0
     let match: RegExpExecArray | null
 
-    match = regex.exec(html)
+    match = regex.exec(sanitizedHtml)
     while (match !== null) {
       if (match.index > lastIndex) {
-        segments.push({ type: 'text', html: html.slice(lastIndex, match.index) })
+        segments.push({ type: 'text', html: sanitizedHtml.slice(lastIndex, match.index) })
       }
       segments.push({ type: 'wikilink', title: match[1] })
       lastIndex = match.index + match[0].length
-      match = regex.exec(html)
+      match = regex.exec(sanitizedHtml)
     }
 
-    if (lastIndex < html.length) {
-      segments.push({ type: 'text', html: html.slice(lastIndex) })
+    if (lastIndex < sanitizedHtml.length) {
+      segments.push({ type: 'text', html: sanitizedHtml.slice(lastIndex) })
     }
 
     return segments
-  }, [html])
+  }, [sanitizedHtml])
 
   const hasWikiLinks = parts.some((p) => p.type === 'wikilink')
 
@@ -171,7 +174,7 @@ export function WikiLinkView({ html, className }: WikiLinkViewProps) {
     return (
       <div
         className={className}
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
       />
     )
   }
