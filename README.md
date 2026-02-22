@@ -1,12 +1,13 @@
 # Zettel-Web
 
 A self-hostable Zettelkasten knowledge management app with AI-powered
-semantic search. Capture notes from the web, email, or Telegram, then
-find connections between ideas using meaning-based search rather than
-just keywords.
+semantic search and automated content generation. Capture notes from
+the web, email, or Telegram, find connections between ideas using
+meaning-based search, and automatically generate blog posts and social
+media drafts from your knowledge graph.
 
 Built with ASP.NET Core, React, PostgreSQL + pgvector, and your choice
-of OpenAI or Ollama for embeddings.
+of OpenAI, Ollama, or Amazon Bedrock.
 
 ![Alt text](./img/ui-screenshot.png "UI screenshot")
 
@@ -36,6 +37,9 @@ of OpenAI or Ollama for embeddings.
 - **OpenTelemetry** - Built-in tracing and metrics instrumentation
 - **Graceful degradation** - Falls back to full-text search if the
   embedding API is unavailable
+- **Automated content generation** - Weekly pipeline that mines your
+  knowledge graph, discovers connected note threads, and generates
+  blog posts and social media drafts in your voice for human review
 
 ## Self-Hosting
 
@@ -212,6 +216,66 @@ infrastructure (see [Webhook Ingestion](#webhook-ingestion-aws)).
 | `Embedding__MaxInputCharacters` | `4000`                   | Max text length before truncation    |
 | `Embedding__MaxRetries`         | `3`                      | Retry count for failed embeddings    |
 
+### Content Generation (LLM)
+
+Content generation uses a separate chat/completion LLM, independent of
+the embedding provider. It generates blog posts and social media drafts
+from your notes.
+
+#### Option A: OpenAI
+
+```bash
+CONTENTGENERATION__PROVIDER=openai
+CONTENTGENERATION__MODEL=gpt-4o
+CONTENTGENERATION__APIKEY=sk-...
+```
+
+#### Option B: Amazon Bedrock
+
+```bash
+CONTENTGENERATION__PROVIDER=bedrock
+CONTENTGENERATION__MODEL=anthropic.claude-3-5-sonnet-20241022-v2:0
+CONTENTGENERATION__REGION=us-east-1
+```
+
+Bedrock uses the ambient AWS credentials from the environment
+(`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` or an IAM role).
+
+#### All Content Generation Options
+
+| Variable                                   | Default    | Description                                         |
+| ------------------------------------------ | ---------- | --------------------------------------------------- |
+| `ContentGeneration__Provider`              | `openai`   | `openai` or `bedrock`                               |
+| `ContentGeneration__Model`                 | `gpt-4o`   | Model identifier                                    |
+| `ContentGeneration__ApiKey`                | (required) | API key — OpenAI only                               |
+| `ContentGeneration__Region`                | (empty)    | AWS region — Bedrock only                           |
+| `ContentGeneration__MaxTokens`             | `4096`     | Max output tokens per generation call               |
+| `ContentGeneration__Temperature`           | `0.7`      | Sampling temperature                                |
+| `ContentGeneration__MaxClusterSize`        | `10`       | Max notes included in a topic cluster               |
+| `ContentGeneration__MinClusterSize`        | `3`        | Min notes required; triggers retry if not met       |
+| `ContentGeneration__MaxSeedRetries`        | `3`        | Max seed selection retries for thin topics          |
+| `ContentGeneration__SemanticThreshold`     | `0.75`     | Cosine similarity threshold for related notes       |
+
+### Content Generation Schedule
+
+The scheduler is **disabled by default**. Enable it to run automatically
+on a weekly cadence (UTC times).
+
+```bash
+CONTENTGENERATION__SCHEDULE__ENABLED=true
+CONTENTGENERATION__SCHEDULE__DAYOFWEEK=Monday
+CONTENTGENERATION__SCHEDULE__TIMEOFDAY=09:00
+```
+
+| Variable                                       | Default    | Description                               |
+| ---------------------------------------------- | ---------- | ----------------------------------------- |
+| `ContentGeneration__Schedule__Enabled`         | `false`    | Set to `true` to enable the weekly run    |
+| `ContentGeneration__Schedule__DayOfWeek`       | `Monday`   | Day to run (`Monday`–`Sunday`)            |
+| `ContentGeneration__Schedule__TimeOfDay`       | `09:00`    | Time to run in UTC (`HH:mm`)              |
+
+Generation can also be triggered manually at any time via
+`POST /api/content/generate`.
+
 ## Deployment Options
 
 ### Docker Compose (single server)
@@ -269,21 +333,25 @@ have email/Telegram capture.
                                  │  Workers         │
                                  └────────┬─────────┘
                                           │
-                    ┌─────────────────────┼──────────────┐
-                    │                     │              │
-               ┌────▼─────┐    ┌─────────▼──┐   ┌──────▼──────┐
-               │PostgreSQL │    │ OpenAI /   │   │ AWS SQS     │
-               │+ pgvector │    │ Ollama     │   │ (optional)  │
-               └───────────┘    └────────────┘   └─────────────┘
+                    ┌─────────────────────┼──────────────────┐
+                    │                     │                  │
+               ┌────▼─────┐    ┌─────────▼──┐   ┌──────────▼──────┐
+               │PostgreSQL │    │ Embedding  │   │ Chat LLM        │
+               │+ pgvector │    │ (OpenAI /  │   │ (OpenAI/Bedrock)│
+               └───────────┘    │  Ollama)   │   │ content gen     │
+                                └────────────┘   └─────────────────┘
 ```
 
-The backend runs three background services:
+The backend runs four background services:
 
 - **Embedding pipeline** - Generates vector embeddings for notes
   asynchronously using `Channel<T>` with database polling as fallback
 - **Enrichment pipeline** - Fetches URL metadata from links in notes
 - **SQS poller** - Reads email/Telegram messages from AWS SQS
   (only active when configured)
+- **Content generation scheduler** - Runs the topic discovery and LLM
+  generation pipeline on a configurable weekly cadence (disabled by
+  default; enable with `ContentGeneration__Schedule__Enabled=true`)
 
 Notes track their embedding state (`pending` -> `processing` ->
 `completed`/`failed`) so no embeddings are silently lost. If the
@@ -324,6 +392,31 @@ embedding API is down, notes queue up and process when it recovers.
 | `POST` | `/api/import` | Import markdown files (JSON array) |
 | `GET`  | `/api/export` | Download all notes as ZIP          |
 
+### Content Generation
+
+| Method  | Endpoint                               | Description                                      |
+| ------- | -------------------------------------- | ------------------------------------------------ |
+| `POST`  | `/api/content/generate`                | Trigger a manual generation run                  |
+| `GET`   | `/api/content/generations`             | List generation runs (paginated)                 |
+| `GET`   | `/api/content/generations/{id}`        | Get a run with its content pieces                |
+| `GET`   | `/api/content/pieces`                  | List pieces (filter by `medium`, `status`)       |
+| `GET`   | `/api/content/pieces/{id}`             | Get a single piece                               |
+| `PUT`   | `/api/content/pieces/{id}/approve`     | Approve a piece                                  |
+| `PUT`   | `/api/content/pieces/{id}/reject`      | Reject a piece                                   |
+| `GET`   | `/api/content/pieces/{id}/export`      | Download piece as a `.md` file                   |
+| `GET`   | `/api/content/schedule`                | Get schedule settings                            |
+| `PUT`   | `/api/content/schedule`                | Update schedule settings                         |
+
+### Voice Configuration
+
+| Method   | Endpoint                  | Description                                   |
+| -------- | ------------------------- | --------------------------------------------- |
+| `GET`    | `/api/voice/examples`     | List writing examples                         |
+| `POST`   | `/api/voice/examples`     | Add a writing example                         |
+| `DELETE` | `/api/voice/examples/{id}`| Delete a writing example                      |
+| `GET`    | `/api/voice/config`       | Get style notes (filter by `medium`)          |
+| `PUT`    | `/api/voice/config`       | Set style notes for a medium (upsert)         |
+
 ### Other
 
 | Method | Endpoint                | Description          |
@@ -339,7 +432,9 @@ embedding API is down, notes queue up and process when it recovers.
 dotnet test
 ```
 
-Tests use in-memory databases and require no external services.
+Unit tests use in-memory databases and require no external services.
+Integration tests spin up a real PostgreSQL container via
+[Testcontainers](https://testcontainers.com/) — Docker must be running.
 
 ## Project Structure
 
