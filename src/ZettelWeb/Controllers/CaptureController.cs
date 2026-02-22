@@ -11,7 +11,7 @@ namespace ZettelWeb.Controllers;
 
 /// <summary>Webhook endpoints for capturing notes via email and Telegram.</summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/capture")]
 [EnableRateLimiting("capture")]
 [Produces("application/json")]
 public class CaptureController : ControllerBase

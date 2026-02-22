@@ -6,7 +6,7 @@ namespace ZettelWeb.Controllers;
 
 /// <summary>Full-text, semantic, and hybrid search across notes.</summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/search")]
 [Produces("application/json")]
 public class SearchController : ControllerBase
 {

@@ -6,7 +6,7 @@ namespace ZettelWeb.Controllers;
 
 /// <summary>Knowledge graph visualization data.</summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/graph")]
 [Produces("application/json")]
 public class GraphController : ControllerBase
 {

@@ -5,7 +5,7 @@ namespace ZettelWeb.Controllers;
 
 /// <summary>Export all notes as a ZIP archive with YAML front matter.</summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/export")]
 public class ExportController : ControllerBase
 {
     private readonly IExportService _exportService;

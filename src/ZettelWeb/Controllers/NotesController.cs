@@ -43,7 +43,7 @@ public record ReEmbedResponse(int Queued);
 
 /// <summary>Manages notes — CRUD, inbox workflow, versions, backlinks, and discovery.</summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/notes")]
 [Produces("application/json")]
 public class NotesController : ControllerBase
 {
@@ -330,7 +330,7 @@ public class NotesController : ControllerBase
 
 /// <summary>Search and browse tags.</summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/tags")]
 [Produces("application/json")]
 public class TagsController : ControllerBase
 {

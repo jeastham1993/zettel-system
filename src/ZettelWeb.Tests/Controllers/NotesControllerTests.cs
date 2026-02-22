@@ -163,7 +163,7 @@ public class NotesControllerTests
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         var response = okResult.Value;
-        var countProp = response!.GetType().GetProperty("queued");
+        var countProp = response!.GetType().GetProperty("Queued");
         Assert.Equal(2, (int)countProp!.GetValue(response)!);
     }
 
@@ -176,7 +176,7 @@ public class NotesControllerTests
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         var response = okResult.Value;
-        var countProp = response!.GetType().GetProperty("queued");
+        var countProp = response!.GetType().GetProperty("Queued");
         Assert.Equal(0, (int)countProp!.GetValue(response)!);
     }
 
@@ -294,7 +294,7 @@ public class NotesControllerTests
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         var response = okResult.Value;
-        var countProp = response!.GetType().GetProperty("count");
+        var countProp = response!.GetType().GetProperty("Count");
         Assert.Equal(2, (int)countProp!.GetValue(response)!);
     }
 

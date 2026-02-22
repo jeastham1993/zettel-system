@@ -9,7 +9,7 @@ public record ImportFileRequest(string FileName, string Content);
 
 /// <summary>Import notes from Notion-compatible markdown files.</summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/import")]
 [Produces("application/json")]
 public class ImportController : ControllerBase
 {
