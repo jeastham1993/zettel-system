@@ -6,7 +6,7 @@ namespace ZettelWeb.Controllers;
 
 /// <summary>Discover forgotten, orphaned, or historically relevant notes.</summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/discovery")]
 [Produces("application/json")]
 public class DiscoveryController : ControllerBase
 {
