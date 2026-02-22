@@ -1,0 +1,1373 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ZettelWeb API",
+    "version": "v1",
+    "description": "A self-hosted Zettelkasten knowledge management API with semantic search, multi-method capture, and AI-powered note discovery.",
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "paths": {
+    "/api/notes": {
+      "post": {
+        "tags": ["Notes"],
+        "summary": "Create a new note. Set status to \"fleeting\" for inbox notes.",
+        "description": "Request body is limited to 1 MB.",
+        "operationId": "createNote",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Note created successfully.",
+            "headers": {
+              "Location": {
+                "description": "URL of the newly created note.",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (e.g. missing title for permanent notes, invalid noteType)."
+          }
+        }
+      },
+      "get": {
+        "tags": ["Notes"],
+        "summary": "List notes with optional filtering by status, tag, and note type.",
+        "operationId": "listNotes",
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 }
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50, "minimum": 1, "maximum": 200 }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by status: \"permanent\" or \"fleeting\".",
+            "schema": { "type": "string", "enum": ["permanent", "fleeting"] }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "description": "Filter by tag value.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "noteType",
+            "in": "query",
+            "description": "Filter by note type: \"regular\", \"structure\", or \"source\".",
+            "schema": { "type": "string", "enum": ["regular", "structure", "source"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated list of notes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfNote"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{id}": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Get a note by its ID.",
+        "operationId": "getNoteById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested note.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Note not found."
+          }
+        }
+      },
+      "put": {
+        "tags": ["Notes"],
+        "summary": "Update an existing note.",
+        "description": "Request body is limited to 1 MB.",
+        "operationId": "updateNote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated note.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Note not found."
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Notes"],
+        "summary": "Delete a note by its ID.",
+        "operationId": "deleteNote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Note deleted successfully."
+          },
+          "404": {
+            "description": "Note not found."
+          }
+        }
+      }
+    },
+    "/api/notes/inbox": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "List fleeting notes in the inbox.",
+        "operationId": "listInbox",
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 }
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50, "minimum": 1, "maximum": 200 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated list of fleeting notes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfNote"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/inbox/count": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Get the count of fleeting notes in the inbox.",
+        "operationId": "inboxCount",
+        "responses": {
+          "200": {
+            "description": "The inbox count.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxCountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{id}/promote": {
+      "post": {
+        "tags": ["Notes"],
+        "summary": "Promote a fleeting note to permanent status.",
+        "operationId": "promoteNote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "noteType",
+            "in": "query",
+            "description": "Target note type: \"regular\", \"structure\", or \"source\".",
+            "schema": { "type": "string", "enum": ["regular", "structure", "source"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The promoted note.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Note not found."
+          }
+        }
+      }
+    },
+    "/api/notes/re-embed": {
+      "post": {
+        "tags": ["Notes"],
+        "summary": "Queue all notes for re-embedding.",
+        "operationId": "reEmbedAll",
+        "responses": {
+          "200": {
+            "description": "Number of notes queued for re-embedding.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReEmbedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/discover": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Discover unrelated notes using semantic diversity.",
+        "operationId": "discoverNotes",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 5 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of diverse search results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SearchResult" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/search-titles": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Search note titles for autocomplete.",
+        "operationId": "searchTitles",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Title prefix to search for.",
+            "schema": { "type": "string", "default": "" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching note titles.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/TitleSearchResult" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/check-duplicate": {
+      "post": {
+        "tags": ["Notes"],
+        "summary": "Check if content is a duplicate of an existing note.",
+        "operationId": "checkDuplicate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckDuplicateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Duplicate check result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateCheckResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{id}/related": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Find semantically related notes.",
+        "operationId": "getRelatedNotes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 5 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Semantically related notes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SearchResult" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{id}/backlinks": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Get backlinks — notes that reference this note via [[wiki-links]].",
+        "operationId": "getBacklinks",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notes that link to this note.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/BacklinkResult" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{fleetingId}/merge/{targetId}": {
+      "post": {
+        "tags": ["Notes"],
+        "summary": "Merge a fleeting note into a target permanent note.",
+        "operationId": "mergeNote",
+        "parameters": [
+          {
+            "name": "fleetingId",
+            "in": "path",
+            "required": true,
+            "description": "The ID of the fleeting note to merge.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "targetId",
+            "in": "path",
+            "required": true,
+            "description": "The ID of the target permanent note.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The merged note.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Fleeting or target note not found."
+          }
+        }
+      }
+    },
+    "/api/notes/{id}/suggested-tags": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Get AI-suggested tags for a note.",
+        "operationId": "getSuggestedTags",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Suggested tag values.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{id}/versions": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Get all versions of a note.",
+        "operationId": "getNoteVersions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Version history of the note.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/NoteVersion" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notes/{id}/versions/{versionId}": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Get a specific version of a note.",
+        "operationId": "getNoteVersion",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteVersion"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Version not found."
+          }
+        }
+      }
+    },
+    "/api/tags": {
+      "get": {
+        "tags": ["Tags"],
+        "summary": "Search tags by prefix for autocomplete.",
+        "operationId": "searchTags",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Tag prefix to search for.",
+            "schema": { "type": "string", "default": "" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching tag values.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "tags": ["Search"],
+        "summary": "Search notes using full-text, semantic, or hybrid mode.",
+        "operationId": "searchNotes",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "The search query string.",
+            "schema": { "type": "string", "default": "" }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Search type: \"hybrid\" (default), \"fulltext\", or \"semantic\".",
+            "schema": { "type": "string", "default": "hybrid", "enum": ["hybrid", "fulltext", "semantic"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results ranked by relevance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SearchResult" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph": {
+      "get": {
+        "tags": ["Graph"],
+        "summary": "Build the knowledge graph with wikilink and semantic edges.",
+        "operationId": "getGraph",
+        "parameters": [
+          {
+            "name": "threshold",
+            "in": "query",
+            "description": "Minimum cosine similarity for semantic edges (0.0–1.0).",
+            "schema": { "type": "number", "format": "double", "default": 0.8 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The knowledge graph data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery": {
+      "get": {
+        "tags": ["Discovery"],
+        "summary": "Discover forgotten, orphaned, or historically relevant notes.",
+        "operationId": "discoverByMode",
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "description": "Discovery mode: \"random\" (default), \"orphans\", or \"today\".",
+            "schema": { "type": "string", "default": "random", "enum": ["random", "orphans", "today"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Discovered notes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Note" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/import": {
+      "post": {
+        "tags": ["Import"],
+        "summary": "Import an array of markdown files as notes.",
+        "description": "Request body is limited to 10 MB.",
+        "operationId": "importMarkdown",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/ImportFileRequest" }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import result summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export": {
+      "get": {
+        "tags": ["Export"],
+        "summary": "Export all notes as a ZIP file containing markdown with YAML front matter.",
+        "operationId": "exportAll",
+        "responses": {
+          "200": {
+            "description": "A ZIP archive of all notes.",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/capture/email": {
+      "post": {
+        "tags": ["Capture"],
+        "summary": "Receive an email webhook payload to capture as a fleeting note.",
+        "description": "Requires a valid X-Webhook-Secret header. Rate limited to 10 requests per minute.",
+        "operationId": "emailWebhook",
+        "parameters": [
+          {
+            "name": "X-Webhook-Secret",
+            "in": "header",
+            "required": true,
+            "description": "Webhook secret for authentication.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Raw email webhook payload (provider-specific)."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook received (always returns 200 regardless of validation outcome)."
+          },
+          "429": {
+            "description": "Rate limit exceeded (10 requests per minute)."
+          }
+        }
+      }
+    },
+    "/api/capture/telegram": {
+      "post": {
+        "tags": ["Capture"],
+        "summary": "Receive a Telegram webhook payload to capture as a fleeting note.",
+        "description": "Requires a valid X-Telegram-Bot-Api-Secret-Token header. Rate limited to 10 requests per minute.",
+        "operationId": "telegramWebhook",
+        "parameters": [
+          {
+            "name": "X-Telegram-Bot-Api-Secret-Token",
+            "in": "header",
+            "required": true,
+            "description": "Telegram bot secret token for authentication.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Raw Telegram Update object."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook received (always returns 200 regardless of validation outcome)."
+          },
+          "429": {
+            "description": "Rate limit exceeded (10 requests per minute)."
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health check endpoint for database, embedding provider, and SQS polling status.",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Service is healthy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckResult"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is unhealthy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Note": {
+        "type": "object",
+        "description": "A note in the Zettelkasten knowledge management system.",
+        "required": ["id", "title", "content"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier (timestamp-based, 17 characters)."
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the note."
+          },
+          "content": {
+            "type": "string",
+            "description": "The HTML content of the note."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the note was created (UTC)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the note was last updated (UTC)."
+          },
+          "status": {
+            "$ref": "#/components/schemas/NoteStatus"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "description": "Capture source: \"web\", \"email\", or \"telegram\"."
+          },
+          "enrichStatus": {
+            "$ref": "#/components/schemas/EnrichStatus"
+          },
+          "embedStatus": {
+            "$ref": "#/components/schemas/EmbedStatus"
+          },
+          "noteType": {
+            "$ref": "#/components/schemas/NoteType"
+          },
+          "sourceAuthor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Author of the source material (only when noteType is Source)."
+          },
+          "sourceTitle": {
+            "type": "string",
+            "nullable": true,
+            "description": "Title of the source material."
+          },
+          "sourceUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "URL of the source material."
+          },
+          "sourceYear": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Publication year of the source material."
+          },
+          "sourceType": {
+            "type": "string",
+            "nullable": true,
+            "description": "Type of source: \"book\", \"article\", \"web\", \"podcast\", or \"other\"."
+          },
+          "tags": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NoteTag" },
+            "description": "Tags associated with this note."
+          }
+        }
+      },
+      "NoteStatus": {
+        "type": "string",
+        "description": "Whether a note is permanent or a fleeting inbox capture.",
+        "enum": ["Permanent", "Fleeting"]
+      },
+      "NoteType": {
+        "type": "string",
+        "description": "The type of note in the Zettelkasten system.",
+        "enum": ["Regular", "Structure", "Source"]
+      },
+      "EmbedStatus": {
+        "type": "string",
+        "description": "Embedding processing status using the outbox pattern.",
+        "enum": ["Pending", "Processing", "Completed", "Failed", "Stale"]
+      },
+      "EnrichStatus": {
+        "type": "string",
+        "description": "URL enrichment processing status.",
+        "enum": ["None", "Pending", "Completed", "Failed", "Processing"]
+      },
+      "NoteTag": {
+        "type": "object",
+        "description": "A tag associated with a note.",
+        "required": ["noteId", "tag"],
+        "properties": {
+          "noteId": {
+            "type": "string",
+            "description": "The ID of the parent note."
+          },
+          "tag": {
+            "type": "string",
+            "description": "The tag value."
+          }
+        }
+      },
+      "NoteVersion": {
+        "type": "object",
+        "description": "A snapshot of a note at a point in time.",
+        "required": ["noteId", "title", "content"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Auto-incremented version ID."
+          },
+          "noteId": {
+            "type": "string",
+            "description": "The ID of the parent note."
+          },
+          "title": {
+            "type": "string",
+            "description": "The title at the time of this version."
+          },
+          "content": {
+            "type": "string",
+            "description": "The content at the time of this version."
+          },
+          "tags": {
+            "type": "string",
+            "nullable": true,
+            "description": "Comma-separated tags at the time of this version."
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this version was saved (UTC)."
+          }
+        }
+      },
+      "CreateNoteRequest": {
+        "type": "object",
+        "description": "Request to create a new note.",
+        "required": ["content"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500,
+            "description": "Note title (required for permanent notes, optional for fleeting)."
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 500000,
+            "description": "The HTML content of the note."
+          },
+          "tags": {
+            "type": "array",
+            "nullable": true,
+            "items": { "type": "string" },
+            "description": "Tags to associate with the note."
+          },
+          "status": {
+            "type": "string",
+            "nullable": true,
+            "description": "Set to \"fleeting\" for inbox notes. Defaults to permanent."
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "description": "Capture source: \"web\", \"email\", or \"telegram\"."
+          },
+          "noteType": {
+            "type": "string",
+            "nullable": true,
+            "description": "Note type: \"regular\", \"structure\", or \"source\"."
+          },
+          "sourceAuthor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Author of the source material."
+          },
+          "sourceTitle": {
+            "type": "string",
+            "nullable": true,
+            "description": "Title of the source material."
+          },
+          "sourceUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "URL of the source material."
+          },
+          "sourceYear": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Publication year of the source material."
+          },
+          "sourceType": {
+            "type": "string",
+            "nullable": true,
+            "description": "Type of source: \"book\", \"article\", \"web\", \"podcast\", or \"other\"."
+          }
+        }
+      },
+      "UpdateNoteRequest": {
+        "type": "object",
+        "description": "Request to update an existing note.",
+        "required": ["title", "content"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "The note title."
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 500000,
+            "description": "The HTML content of the note."
+          },
+          "tags": {
+            "type": "array",
+            "nullable": true,
+            "items": { "type": "string" },
+            "description": "Tags to associate with the note."
+          },
+          "noteType": {
+            "type": "string",
+            "nullable": true,
+            "description": "Note type: \"regular\", \"structure\", or \"source\"."
+          },
+          "sourceAuthor": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceYear": {
+            "type": "integer",
+            "nullable": true
+          },
+          "sourceType": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CheckDuplicateRequest": {
+        "type": "object",
+        "description": "Request to check for duplicate content.",
+        "required": ["content"],
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 500000,
+            "description": "The content to check for duplicates."
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "description": "A search result with relevance ranking.",
+        "required": ["noteId", "title", "snippet"],
+        "properties": {
+          "noteId": {
+            "type": "string",
+            "description": "The ID of the matched note."
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the matched note."
+          },
+          "snippet": {
+            "type": "string",
+            "description": "A text snippet highlighting the match."
+          },
+          "rank": {
+            "type": "number",
+            "format": "double",
+            "description": "Relevance score (higher is more relevant)."
+          }
+        }
+      },
+      "TitleSearchResult": {
+        "type": "object",
+        "description": "A lightweight title-only search result for autocomplete.",
+        "required": ["noteId", "title"],
+        "properties": {
+          "noteId": {
+            "type": "string",
+            "description": "The ID of the matched note."
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the matched note."
+          }
+        }
+      },
+      "BacklinkResult": {
+        "type": "object",
+        "description": "A note that links back to the queried note via [[wiki-links]].",
+        "required": ["id", "title"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The ID of the linking note."
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the linking note."
+          }
+        }
+      },
+      "DuplicateCheckResult": {
+        "type": "object",
+        "description": "Result of a duplicate content check.",
+        "required": ["isDuplicate", "similarity"],
+        "properties": {
+          "isDuplicate": {
+            "type": "boolean",
+            "description": "Whether a duplicate was found above the similarity threshold."
+          },
+          "similarNoteId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The ID of the most similar existing note, if any."
+          },
+          "similarNoteTitle": {
+            "type": "string",
+            "nullable": true,
+            "description": "The title of the most similar existing note, if any."
+          },
+          "similarity": {
+            "type": "number",
+            "format": "double",
+            "description": "Cosine similarity score (0.0–1.0)."
+          }
+        }
+      },
+      "GraphData": {
+        "type": "object",
+        "description": "Knowledge graph containing nodes (notes) and edges (relationships).",
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/GraphNode" },
+            "description": "All notes as graph nodes."
+          },
+          "edges": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/GraphEdge" },
+            "description": "Relationships between notes."
+          }
+        }
+      },
+      "GraphNode": {
+        "type": "object",
+        "description": "A note represented as a node in the knowledge graph.",
+        "required": ["id", "title"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The note ID."
+          },
+          "title": {
+            "type": "string",
+            "description": "The note title."
+          },
+          "edgeCount": {
+            "type": "integer",
+            "description": "Number of edges connected to this node."
+          }
+        }
+      },
+      "GraphEdge": {
+        "type": "object",
+        "description": "A relationship between two notes in the knowledge graph.",
+        "required": ["source", "target", "type"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "The ID of the source note."
+          },
+          "target": {
+            "type": "string",
+            "description": "The ID of the target note."
+          },
+          "type": {
+            "type": "string",
+            "description": "Edge type: \"wikilink\" (explicit [[link]]) or \"semantic\" (AI similarity)."
+          },
+          "weight": {
+            "type": "number",
+            "format": "double",
+            "description": "Edge weight — cosine similarity for semantic edges, 1.0 for wikilinks."
+          }
+        }
+      },
+      "ImportFileRequest": {
+        "type": "object",
+        "description": "A file to import as a note.",
+        "required": ["fileName", "content"],
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "description": "Original file name (used to derive the note title)."
+          },
+          "content": {
+            "type": "string",
+            "description": "Raw markdown content of the file."
+          }
+        }
+      },
+      "ImportResult": {
+        "type": "object",
+        "description": "Result of a bulk import operation.",
+        "required": ["total", "imported", "skipped", "noteIds"],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "description": "Total number of files submitted."
+          },
+          "imported": {
+            "type": "integer",
+            "description": "Number of notes successfully imported."
+          },
+          "skipped": {
+            "type": "integer",
+            "description": "Number of files skipped (e.g. empty or invalid)."
+          },
+          "noteIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "IDs of the newly created notes."
+          }
+        }
+      },
+      "InboxCountResponse": {
+        "type": "object",
+        "description": "Response for the inbox count endpoint.",
+        "required": ["count"],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Number of fleeting notes in the inbox."
+          }
+        }
+      },
+      "ReEmbedResponse": {
+        "type": "object",
+        "description": "Response for the re-embed endpoint.",
+        "required": ["queued"],
+        "properties": {
+          "queued": {
+            "type": "integer",
+            "description": "Number of notes queued for re-embedding."
+          }
+        }
+      },
+      "PagedResultOfNote": {
+        "type": "object",
+        "description": "A paginated result set of notes.",
+        "required": ["items", "totalCount"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Note" },
+            "description": "The notes in this page."
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "Total number of notes across all pages."
+          }
+        }
+      },
+      "HealthCheckResult": {
+        "type": "object",
+        "description": "Aggregate health check result.",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Overall status: \"Healthy\", \"Degraded\", or \"Unhealthy\".",
+            "enum": ["Healthy", "Degraded", "Unhealthy"]
+          },
+          "entries": {
+            "type": "object",
+            "description": "Individual health check results keyed by name.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HealthCheckEntry"
+            }
+          }
+        }
+      },
+      "HealthCheckEntry": {
+        "type": "object",
+        "description": "Individual health check entry.",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["Healthy", "Degraded", "Unhealthy"]
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    { "name": "Notes", "description": "CRUD, inbox workflow, versions, backlinks, and discovery for notes." },
+    { "name": "Tags", "description": "Search and browse tags." },
+    { "name": "Search", "description": "Full-text, semantic, and hybrid search across notes." },
+    { "name": "Graph", "description": "Knowledge graph visualization data." },
+    { "name": "Discovery", "description": "Discover forgotten, orphaned, or historically relevant notes." },
+    { "name": "Import", "description": "Import notes from Notion-compatible markdown files." },
+    { "name": "Export", "description": "Export all notes as a ZIP archive." },
+    { "name": "Capture", "description": "Webhook endpoints for capturing notes via email and Telegram." },
+    { "name": "Health", "description": "Service health check." }
+  ]
+}
