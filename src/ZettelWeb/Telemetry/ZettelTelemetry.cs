@@ -39,4 +39,11 @@ public static class ZettelTelemetry
     public static readonly Histogram<double> SearchDuration =
         Meter.CreateHistogram<double>("zettel.searches.duration", "ms",
             "Time taken to execute a search");
+
+    public static readonly Counter<long> ContentGenerated =
+        Meter.CreateCounter<long>("zettel.content.generated", description: "Number of content generation runs");
+
+    public static readonly Counter<long> ScheduledGenerations =
+        Meter.CreateCounter<long>("zettel.content.scheduled_generations",
+            description: "Number of scheduled content generation runs");
 }

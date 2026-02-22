@@ -15,6 +15,12 @@ const InboxPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/settings').then((m) => ({ default: m.SettingsPage })),
 )
+const ContentReviewPage = lazy(() =>
+  import('./pages/content-review').then((m) => ({ default: m.ContentReviewPage })),
+)
+const VoiceConfigPage = lazy(() =>
+  import('./pages/voice-config').then((m) => ({ default: m.VoiceConfigPage })),
+)
 
 function LazyFallback() {
   return (
@@ -45,6 +51,22 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LazyFallback />}>
             <SettingsPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/content',
+        element: (
+          <Suspense fallback={<LazyFallback />}>
+            <ContentReviewPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/voice',
+        element: (
+          <Suspense fallback={<LazyFallback />}>
+            <VoiceConfigPage />
           </Suspense>
         ),
       },

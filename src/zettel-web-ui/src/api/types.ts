@@ -146,3 +146,48 @@ export interface PagedResponse<T> {
   items: T[]
   totalCount: number
 }
+
+export type ContentGenerationStatus = 'Pending' | 'Generated' | 'Approved' | 'Rejected'
+
+export type ContentPieceStatus = 'Draft' | 'Approved' | 'Rejected'
+
+export type ContentMedium = 'blog' | 'social'
+
+export interface ContentGeneration {
+  id: string
+  seedNoteId: string
+  clusterNoteIds: string[]
+  topicSummary: string
+  status: ContentGenerationStatus
+  generatedAt: string
+  reviewedAt: string | null
+  pieces?: ContentPiece[]
+}
+
+export interface ContentPiece {
+  id: string
+  generationId: string
+  medium: ContentMedium
+  title: string | null
+  body: string
+  status: ContentPieceStatus
+  sequence: number
+  createdAt: string
+  approvedAt: string | null
+}
+
+export interface VoiceExample {
+  id: string
+  medium: string
+  title: string | null
+  content: string
+  source: string | null
+  createdAt: string
+}
+
+export interface VoiceConfig {
+  id: string
+  medium: string
+  styleNotes: string | null
+  updatedAt: string
+}

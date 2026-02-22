@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Plus, Search, GitBranch, Inbox, Menu } from 'lucide-react'
+import { Plus, Search, GitBranch, Inbox, Menu, Sparkles, Mic } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -87,6 +87,28 @@ export function Header({ onOpenSearch }: HeaderProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="sm" asChild>
+                <Link to="/content" className="text-muted-foreground">
+                  <Sparkles className="h-4 w-4" />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Content review</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/voice" className="text-muted-foreground">
+                  <Mic className="h-4 w-4" />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Voice & style</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" asChild>
                 <Link to="/graph" className="text-muted-foreground">
                   <GitBranch className="h-4 w-4" />
                 </Link>
@@ -140,6 +162,18 @@ export function Header({ onOpenSearch }: HeaderProps) {
                   {count > 0 && (
                     <span className="ml-auto text-xs text-amber-500">{count}</span>
                   )}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/content" className="gap-2" onClick={() => setMenuOpen(false)}>
+                  <Sparkles className="h-4 w-4" />
+                  Content review
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/voice" className="gap-2" onClick={() => setMenuOpen(false)}>
+                  <Mic className="h-4 w-4" />
+                  Voice & style
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>

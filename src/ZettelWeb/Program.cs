@@ -106,6 +106,9 @@ builder.Services.AddScoped<IGraphService, GraphService>();
 builder.Services.Configure<CaptureConfig>(builder.Configuration.GetSection("Capture"));
 builder.Services.AddScoped<CaptureService>();
 builder.Services.AddScoped<IDiscoveryService, DiscoveryService>();
+builder.Services.Configure<TopicDiscoveryOptions>(
+    builder.Configuration.GetSection("ContentGenerator:TopicDiscovery"));
+builder.Services.AddScoped<ITopicDiscoveryService, TopicDiscoveryService>();
 builder.Services.AddScoped<ISearchService>(sp =>
     new SearchService(
         sp.GetRequiredService<ZettelDbContext>(),
@@ -142,6 +145,38 @@ else
 builder.Services.AddHostedService<EmbeddingBackgroundService>();
 builder.Services.AddHttpClient("Enrichment");
 builder.Services.AddHostedService<EnrichmentBackgroundService>();
+
+// ── Content Generation LLM (IChatClient) ─────────────────────
+builder.Services.Configure<ContentGenerationOptions>(
+    builder.Configuration.GetSection(ContentGenerationOptions.SectionName));
+
+var cgProvider = builder.Configuration["ContentGeneration:Provider"] ?? "bedrock";
+var cgModel = builder.Configuration["ContentGeneration:Model"]
+    ?? "anthropic.claude-3-5-sonnet-20241022-v2:0";
+
+if (string.Equals(cgProvider, "bedrock", StringComparison.OrdinalIgnoreCase))
+{
+    var cgRegion = builder.Configuration["ContentGeneration:Region"];
+    var bedrockClient = !string.IsNullOrEmpty(cgRegion)
+        ? new AmazonBedrockRuntimeClient(Amazon.RegionEndpoint.GetBySystemName(cgRegion))
+        : new AmazonBedrockRuntimeClient();
+    builder.Services.AddSingleton<IChatClient>(bedrockClient.AsIChatClient(cgModel));
+}
+else
+{
+    var cgApiKey = builder.Configuration["ContentGeneration:ApiKey"] ?? "";
+    builder.Services.AddSingleton<IChatClient>(
+        new OpenAIClient(cgApiKey).GetChatClient(cgModel).AsIChatClient());
+}
+
+builder.Services.AddScoped<IContentGenerationService, ContentGenerationService>();
+
+if (string.Equals(
+    builder.Configuration["ContentGeneration:Schedule:Enabled"], "true",
+    StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHostedService<ContentGenerationScheduler>();
+}
 
 var sqsQueueUrl = builder.Configuration["Capture:SqsQueueUrl"];
 if (!string.IsNullOrEmpty(sqsQueueUrl))

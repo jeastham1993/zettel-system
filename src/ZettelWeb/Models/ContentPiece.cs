@@ -1,0 +1,35 @@
+namespace ZettelWeb.Models;
+
+/// <summary>Status of an individual content piece.</summary>
+public enum ContentPieceStatus
+{
+    /// <summary>Content is in draft form awaiting review.</summary>
+    Draft,
+    /// <summary>Content has been approved for publishing.</summary>
+    Approved,
+    /// <summary>Content has been rejected.</summary>
+    Rejected
+}
+
+/// <summary>An individual piece of generated content (blog post or social media post).</summary>
+public class ContentPiece
+{
+    /// <summary>Unique identifier (timestamp-based, 21 characters).</summary>
+    public required string Id { get; set; }
+    /// <summary>FK to the parent ContentGeneration run.</summary>
+    public required string GenerationId { get; set; }
+    /// <summary>Content medium: "blog" or "social".</summary>
+    public required string Medium { get; set; }
+    /// <summary>Title of the content piece (optional for social posts).</summary>
+    public string? Title { get; set; }
+    /// <summary>Markdown body of the content.</summary>
+    public required string Body { get; set; }
+    /// <summary>Current review status.</summary>
+    public ContentPieceStatus Status { get; set; } = ContentPieceStatus.Draft;
+    /// <summary>Ordering sequence within the generation run.</summary>
+    public int Sequence { get; set; }
+    /// <summary>When this piece was created (UTC).</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>When this piece was approved (UTC), if applicable.</summary>
+    public DateTime? ApprovedAt { get; set; }
+}

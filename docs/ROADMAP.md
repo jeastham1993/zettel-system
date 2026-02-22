@@ -1,6 +1,6 @@
 # Zettel-Web Roadmap
 
-Last Updated: 2026-02-15
+Last Updated: 2026-02-22
 
 ## Overview
 
@@ -70,6 +70,39 @@ with pgvector for semantic search.
 - Multi-stage Dockerfiles for backend (.NET) and frontend (nginx)
 - Dev database compose file
 - Aspire Dashboard for local telemetry visualization
+
+## In Progress
+
+### Automated Content Generator (Phase 1: Core Pipeline)
+
+A scheduled feature that mines the Zettelkasten, discovers threads of
+connected notes, and generates publish-ready blog posts and social media
+posts for human review.
+
+Design doc: [design-content-generator.md](design-content-generator.md)
+
+**Implementation phases:**
+
+1. **Core Pipeline** (in progress)
+   - Topic discovery: random seed selection + graph walk (wikilinks +
+     semantic similarity) to build note clusters
+   - Content generation via LLM (blog post + 3-5 social media posts)
+   - Dedicated chat/completion LLM provider (`IChatClient`), separate
+     from the embedding provider, supporting Bedrock and OpenAI
+   - Repetition tracking: seed note history + topic overlap detection
+   - New data model: `ContentGeneration`, `ContentPiece`, `UsedSeedNote`
+     entities with EF Core migration
+   - API endpoints for generation triggers, content listing, and
+     approve/reject workflow
+   - Review dashboard in the web UI
+2. **Voice Profile** (planned) - voice example storage, per-medium
+   configuration, voice-aware prompt engineering
+3. **Scheduling** (planned) - background service for weekly execution,
+   schedule configuration API
+4. **Review Dashboard** (planned) - in-app review/approval UI with
+   inline editing, markdown export
+5. **Extensibility** (planned) - medium plugin architecture, additional
+   output formats (newsletter, podcast notes, etc.)
 
 ## Architecture Decisions
 
