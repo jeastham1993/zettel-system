@@ -152,8 +152,7 @@ public class VoiceController : ControllerBase
 
     private static string GenerateId()
     {
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
-        var random = Random.Shared.Next(0, 99999).ToString("D5");
-        return $"{timestamp}{random}"[..21];
+        var now = DateTime.UtcNow;
+        return $"{now:yyyyMMddHHmmssfff}{Random.Shared.Next(1000, 9999)}";
     }
 }
