@@ -36,7 +36,7 @@ public record VoiceConfigResponse(
 
 /// <summary>Manages voice examples and style configuration for content generation.</summary>
 [ApiController]
-[Route("api/voice")]
+[Route("api/content/voice")]
 [Produces("application/json")]
 public class VoiceController : ControllerBase
 {

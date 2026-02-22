@@ -49,7 +49,7 @@ public class SqsPollingBackgroundService : BackgroundService
                 var response = await _sqsClient.ReceiveMessageAsync(request, stoppingToken);
                 LastPollUtc = DateTime.UtcNow;
 
-                foreach (var message in response.Messages)
+                foreach (var message in response.Messages ?? [])
                 {
                     if (stoppingToken.IsCancellationRequested) break;
 

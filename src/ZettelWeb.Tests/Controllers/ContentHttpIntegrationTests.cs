@@ -56,7 +56,7 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
     [Fact]
     public async Task POST_VoiceExamples_Returns201WithExample()
     {
-        var response = await _client.PostAsJsonAsync("/api/voice/examples", new
+        var response = await _client.PostAsJsonAsync("/api/content/voice/examples", new
         {
             medium = "blog",
             title = "My writing sample",
@@ -74,7 +74,7 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
     [Fact]
     public async Task GET_VoiceExamples_Returns200WithList()
     {
-        var response = await _client.GetAsync("/api/voice/examples");
+        var response = await _client.GetAsync("/api/content/voice/examples");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var examples = await response.Content.ReadFromJsonAsync<List<VoiceExampleResponse>>();
@@ -85,7 +85,7 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
     public async Task DELETE_VoiceExamples_Returns204WhenFound()
     {
         // Create one first
-        var createResponse = await _client.PostAsJsonAsync("/api/voice/examples", new
+        var createResponse = await _client.PostAsJsonAsync("/api/content/voice/examples", new
         {
             medium = "social",
             content = "Quick social post example"
@@ -93,7 +93,7 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
         createResponse.EnsureSuccessStatusCode();
         var created = await createResponse.Content.ReadFromJsonAsync<VoiceExampleResponse>();
 
-        var deleteResponse = await _client.DeleteAsync($"/api/voice/examples/{created!.Id}");
+        var deleteResponse = await _client.DeleteAsync($"/api/content/voice/examples/{created!.Id}");
 
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
     }
@@ -101,7 +101,7 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
     [Fact]
     public async Task DELETE_VoiceExamples_Returns404WhenNotFound()
     {
-        var response = await _client.DeleteAsync("/api/voice/examples/doesnotexist");
+        var response = await _client.DeleteAsync("/api/content/voice/examples/doesnotexist");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -111,7 +111,7 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
     [Fact]
     public async Task PUT_VoiceConfig_Returns200AndUpserts()
     {
-        var response = await _client.PutAsJsonAsync("/api/voice/config", new
+        var response = await _client.PutAsJsonAsync("/api/content/voice/config", new
         {
             medium = "blog",
             styleNotes = "Write concisely. Avoid jargon. Use active voice."
@@ -128,13 +128,13 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
     public async Task GET_VoiceConfig_Returns200WithAllConfigs()
     {
         // Upsert a config first
-        await _client.PutAsJsonAsync("/api/voice/config", new
+        await _client.PutAsJsonAsync("/api/content/voice/config", new
         {
             medium = "social",
             styleNotes = "Be punchy."
         });
 
-        var response = await _client.GetAsync("/api/voice/config");
+        var response = await _client.GetAsync("/api/content/voice/config");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var configs = await response.Content.ReadFromJsonAsync<List<VoiceConfigResponse>>();
@@ -145,10 +145,10 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
     [Fact]
     public async Task GET_VoiceConfig_FiltersByMedium()
     {
-        await _client.PutAsJsonAsync("/api/voice/config", new { medium = "blog", styleNotes = "Blog style." });
-        await _client.PutAsJsonAsync("/api/voice/config", new { medium = "social", styleNotes = "Social style." });
+        await _client.PutAsJsonAsync("/api/content/voice/config", new { medium = "blog", styleNotes = "Blog style." });
+        await _client.PutAsJsonAsync("/api/content/voice/config", new { medium = "social", styleNotes = "Social style." });
 
-        var response = await _client.GetAsync("/api/voice/config?medium=blog");
+        var response = await _client.GetAsync("/api/content/voice/config?medium=blog");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var configs = await response.Content.ReadFromJsonAsync<List<VoiceConfigResponse>>();
