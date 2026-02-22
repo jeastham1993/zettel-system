@@ -4,10 +4,13 @@ using ZettelWeb.Services;
 
 namespace ZettelWeb.Controllers;
 
+/// <summary>A file to import as a note.</summary>
 public record ImportFileRequest(string FileName, string Content);
 
+/// <summary>Import notes from Notion-compatible markdown files.</summary>
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
 public class ImportController : ControllerBase
 {
     private readonly IImportService _importService;
@@ -17,8 +20,11 @@ public class ImportController : ControllerBase
         _importService = importService;
     }
 
+    /// <summary>Import an array of markdown files as notes.</summary>
+    /// <remarks>Request body is limited to 10 MB.</remarks>
     [HttpPost]
     [RequestSizeLimit(10_485_760)] // 10 MB
+    [ProducesResponseType<ImportResult>(200)]
     public async Task<IActionResult> Import([FromBody] ImportFileRequest[] files)
     {
         var importFiles = files

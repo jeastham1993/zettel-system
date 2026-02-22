@@ -11,6 +11,7 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Scalar.AspNetCore;
 using System.Text.Json;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using ZettelWeb;
@@ -26,6 +27,22 @@ builder.Services.AddControllers()
     .AddJsonOptions(o =>
         o.JsonSerializerOptions.Converters.Add(
             new System.Text.Json.Serialization.JsonStringEnumConverter()));
+
+// ── OpenAPI ────────────────────────────────────────────────
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, context, ct) =>
+    {
+        document.Info = new()
+        {
+            Title = "ZettelWeb API",
+            Version = "v1",
+            Description = "A self-hosted Zettelkasten knowledge management API with semantic search, " +
+                          "multi-method capture, and AI-powered note discovery."
+        };
+        return Task.CompletedTask;
+    });
+});
 
 // ── OpenTelemetry ────────────────────────────────────────
 var otelEndpoint = builder.Configuration["Otel:Endpoint"];
@@ -211,6 +228,12 @@ using (var scope = app.Services.CreateScope())
 app.UseCors();
 app.UseRateLimiter();
 app.MapControllers();
+app.MapOpenApi();
+app.MapScalarApiReference(options =>
+{
+    options.WithTitle("ZettelWeb API")
+           .WithTheme(ScalarTheme.Mars);
+});
 app.MapHealthChecks("/health", new()
 {
     ResponseWriter = async (context, report) =>

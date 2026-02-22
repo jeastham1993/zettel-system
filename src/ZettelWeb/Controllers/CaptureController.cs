@@ -9,9 +9,11 @@ namespace ZettelWeb.Controllers;
 // Telegram webhook registration:
 // https://api.telegram.org/bot<token>/setWebhook?url=https://<domain>/api/capture/telegram
 
+/// <summary>Webhook endpoints for capturing notes via email and Telegram.</summary>
 [ApiController]
 [Route("api/[controller]")]
 [EnableRateLimiting("capture")]
+[Produces("application/json")]
 public class CaptureController : ControllerBase
 {
     private readonly CaptureService _captureService;
@@ -28,7 +30,11 @@ public class CaptureController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>Receive an email webhook payload to capture as a fleeting note.</summary>
+    /// <remarks>Requires a valid X-Webhook-Secret header. Rate limited to 10 requests per minute.</remarks>
     [HttpPost("email")]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(429)]
     public async Task<IActionResult> EmailWebhook([FromBody] JsonElement payload)
     {
         if (string.IsNullOrEmpty(_config.WebhookSecret))
@@ -54,7 +60,11 @@ public class CaptureController : ControllerBase
         return Ok();
     }
 
+    /// <summary>Receive a Telegram webhook payload to capture as a fleeting note.</summary>
+    /// <remarks>Requires a valid X-Telegram-Bot-Api-Secret-Token header. Rate limited to 10 requests per minute.</remarks>
     [HttpPost("telegram")]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(429)]
     public async Task<IActionResult> TelegramWebhook([FromBody] JsonElement payload)
     {
         if (string.IsNullOrEmpty(_config.TelegramBotToken))

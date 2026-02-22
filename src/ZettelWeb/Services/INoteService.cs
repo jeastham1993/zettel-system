@@ -2,6 +2,10 @@ using ZettelWeb.Models;
 
 namespace ZettelWeb.Services;
 
+/// <summary>A paginated result set.</summary>
+/// <typeparam name="T">The item type.</typeparam>
+/// <param name="Items">The items in this page.</param>
+/// <param name="TotalCount">Total number of items across all pages.</param>
 public record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount);
 
 public interface INoteService
