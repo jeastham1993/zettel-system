@@ -10,6 +10,7 @@ import {
   FileText,
   MessageSquare,
   Loader2,
+  RotateCcw,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -68,6 +69,15 @@ function PieceCard({ piece }: { piece: ContentPiece }) {
     onError: () => toast.error('Failed to reject piece'),
   })
 
+  const regenerate = useMutation({
+    mutationFn: () => contentApi.regenerateMedium(piece.generationId, piece.medium as 'blog' | 'social'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['generations', piece.generationId] })
+      toast.success(`${isBlog ? 'Blog' : 'Social'} content regenerated`)
+    },
+    onError: () => toast.error('Failed to regenerate content'),
+  })
+
   const handleExport = useCallback(async () => {
     try {
       const blob = await contentApi.exportPiece(piece.id)
@@ -120,7 +130,7 @@ function PieceCard({ piece }: { piece: ContentPiece }) {
               variant="ghost"
               size="xs"
               onClick={() => approve.mutate()}
-              disabled={approve.isPending || reject.isPending}
+              disabled={approve.isPending || reject.isPending || regenerate.isPending}
               className="gap-1 text-green-600 hover:text-green-700 dark:text-green-400"
             >
               <Check className="size-3" />
@@ -130,11 +140,25 @@ function PieceCard({ piece }: { piece: ContentPiece }) {
               variant="ghost"
               size="xs"
               onClick={() => reject.mutate()}
-              disabled={approve.isPending || reject.isPending}
+              disabled={approve.isPending || reject.isPending || regenerate.isPending}
               className="gap-1 text-red-600 hover:text-red-700 dark:text-red-400"
             >
               <X className="size-3" />
               Reject
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => regenerate.mutate()}
+              disabled={approve.isPending || reject.isPending || regenerate.isPending}
+              className="gap-1 text-muted-foreground"
+            >
+              {regenerate.isPending ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <RotateCcw className="size-3" />
+              )}
+              Regenerate
             </Button>
           </>
         )}
@@ -162,48 +186,77 @@ function GenerationCard({ generation }: { generation: ContentGeneration }) {
     enabled: expanded,
   })
 
+  const regenerateFull = useMutation({
+    mutationFn: () => contentApi.regenerateGeneration(generation.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['generations'] })
+      toast.success('New generation created from the same notes')
+    },
+    onError: () => toast.error('Failed to regenerate content'),
+  })
+
   const pieces = detailQuery.data?.pieces ?? generation.pieces ?? []
   const blogPieces = pieces.filter((p) => p.medium === 'blog')
   const socialPieces = pieces.filter((p) => p.medium === 'social')
 
   return (
     <div className="rounded-lg border border-border/50 transition-colors hover:border-border">
-      <button
-        onClick={() => {
-          setExpanded(!expanded)
-          if (!expanded) {
-            queryClient.invalidateQueries({
-              queryKey: ['generations', generation.id],
-            })
-          }
-        }}
-        className="flex w-full items-start gap-3 px-4 py-4 text-left"
-      >
-        <div className="mt-0.5 shrink-0 text-muted-foreground">
-          {expanded ? (
-            <ChevronDown className="size-4" />
-          ) : (
-            <ChevronRight className="size-4" />
+      <div className="flex w-full items-start gap-3 px-4 py-4">
+        <button
+          onClick={() => {
+            setExpanded(!expanded)
+            if (!expanded) {
+              queryClient.invalidateQueries({
+                queryKey: ['generations', generation.id],
+              })
+            }
+          }}
+          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+        >
+          <div className="mt-0.5 shrink-0 text-muted-foreground">
+            {expanded ? (
+              <ChevronDown className="size-4" />
+            ) : (
+              <ChevronRight className="size-4" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">{generation.topicSummary}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <Badge
+                variant={statusBadgeVariant(generation.status)}
+                className="text-xs"
+              >
+                {generation.status}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {pieceSummary(pieces.length > 0 ? pieces : undefined)}
+              </span>
+            </div>
+          </div>
+        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <time className="text-xs text-muted-foreground">
+            {relativeDate(generation.generatedAt)}
+          </time>
+          {generation.status !== 'Approved' && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => regenerateFull.mutate()}
+              disabled={regenerateFull.isPending}
+              className="gap-1 text-muted-foreground"
+            >
+              {regenerateFull.isPending ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <RotateCcw className="size-3" />
+              )}
+              Regenerate
+            </Button>
           )}
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">{generation.topicSummary}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <Badge
-              variant={statusBadgeVariant(generation.status)}
-              className="text-xs"
-            >
-              {generation.status}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              {pieceSummary(pieces.length > 0 ? pieces : undefined)}
-            </span>
-          </div>
-        </div>
-        <time className="shrink-0 text-xs text-muted-foreground">
-          {relativeDate(generation.generatedAt)}
-        </time>
-      </button>
+      </div>
 
       {expanded && (
         <div className="border-t border-border/50 px-4 py-4">

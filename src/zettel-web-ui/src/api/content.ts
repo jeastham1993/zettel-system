@@ -30,11 +30,19 @@ export function getPiece(id: string): Promise<ContentPiece> {
 }
 
 export function approvePiece(id: string): Promise<void> {
-  return post<void>(`/api/content/pieces/${encodeURIComponent(id)}/approve`)
+  return put<void>(`/api/content/pieces/${encodeURIComponent(id)}/approve`, {})
 }
 
 export function rejectPiece(id: string): Promise<void> {
-  return post<void>(`/api/content/pieces/${encodeURIComponent(id)}/reject`)
+  return put<void>(`/api/content/pieces/${encodeURIComponent(id)}/reject`, {})
+}
+
+export function regenerateGeneration(id: string): Promise<ContentGeneration> {
+  return post<ContentGeneration>(`/api/content/generations/${encodeURIComponent(id)}/regenerate`)
+}
+
+export function regenerateMedium(id: string, medium: 'blog' | 'social'): Promise<ContentPiece[]> {
+  return post<ContentPiece[]>(`/api/content/generations/${encodeURIComponent(id)}/regenerate/${medium}`)
 }
 
 export function exportPiece(id: string): Promise<Blob> {
