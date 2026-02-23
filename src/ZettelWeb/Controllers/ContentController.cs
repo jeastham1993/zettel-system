@@ -79,6 +79,23 @@ public partial class ContentController : ControllerBase
             MapGeneration(generation));
     }
 
+    /// <summary>Delete a content generation and all its pieces.</summary>
+    [HttpDelete("generations/{id}")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> DeleteGeneration(string id)
+    {
+        var generation = await _db.ContentGenerations.FindAsync(id);
+
+        if (generation is null)
+            return NotFound();
+
+        _db.ContentGenerations.Remove(generation);
+        await _db.SaveChangesAsync();
+
+        return NoContent();
+    }
+
     /// <summary>Regenerate all content for an existing generation using the same note cluster.</summary>
     [HttpPost("generations/{id}/regenerate")]
     [ProducesResponseType<ContentGenerationResponse>(201)]

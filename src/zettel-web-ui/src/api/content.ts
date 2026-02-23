@@ -37,6 +37,10 @@ export function rejectPiece(id: string): Promise<void> {
   return put<void>(`/api/content/pieces/${encodeURIComponent(id)}/reject`, {})
 }
 
+export function deleteGeneration(id: string): Promise<void> {
+  return del(`/api/content/generations/${encodeURIComponent(id)}`)
+}
+
 export function regenerateGeneration(id: string): Promise<ContentGeneration> {
   return post<ContentGeneration>(`/api/content/generations/${encodeURIComponent(id)}/regenerate`)
 }

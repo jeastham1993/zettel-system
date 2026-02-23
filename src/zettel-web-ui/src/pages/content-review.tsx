@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Loader2,
   RotateCcw,
+  Trash2,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -195,6 +196,15 @@ function GenerationCard({ generation }: { generation: ContentGeneration }) {
     onError: () => toast.error('Failed to regenerate content'),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: () => contentApi.deleteGeneration(generation.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['generations'] })
+      toast.success('Generation deleted')
+    },
+    onError: () => toast.error('Failed to delete generation'),
+  })
+
   const pieces = detailQuery.data?.pieces ?? generation.pieces ?? []
   const blogPieces = pieces.filter((p) => p.medium === 'blog')
   const socialPieces = pieces.filter((p) => p.medium === 'social')
@@ -244,7 +254,7 @@ function GenerationCard({ generation }: { generation: ContentGeneration }) {
               variant="ghost"
               size="xs"
               onClick={() => regenerateFull.mutate()}
-              disabled={regenerateFull.isPending}
+              disabled={regenerateFull.isPending || deleteMutation.isPending}
               className="gap-1 text-muted-foreground"
             >
               {regenerateFull.isPending ? (
@@ -255,6 +265,20 @@ function GenerationCard({ generation }: { generation: ContentGeneration }) {
               Regenerate
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => deleteMutation.mutate()}
+            disabled={regenerateFull.isPending || deleteMutation.isPending}
+            className="gap-1 text-destructive hover:text-destructive"
+          >
+            {deleteMutation.isPending ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <Trash2 className="size-3" />
+            )}
+            Delete
+          </Button>
         </div>
       </div>
 

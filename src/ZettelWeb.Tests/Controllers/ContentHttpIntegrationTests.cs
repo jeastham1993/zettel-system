@@ -28,25 +28,42 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /// <summary>Inserts an approved ContentGeneration directly via EF Core and returns its ID.</summary>
-    private async Task<string> SeedApprovedGenerationAsync()
+    /// <summary>Inserts a ContentGeneration with one blog piece directly via EF Core and returns its ID.</summary>
+    private async Task<string> SeedGenerationAsync(GenerationStatus status = GenerationStatus.Generated)
     {
         using var scope = _app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ZettelDbContext>();
 
-        var id = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}{Random.Shared.Next(1000, 9999)}";
-        db.ContentGenerations.Add(new ContentGeneration
+        var genId = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}{Random.Shared.Next(1000, 4999)}";
+        var pieceId = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}{Random.Shared.Next(5000, 9999)}";
+
+        var generation = new ContentGeneration
         {
-            Id = id,
+            Id = genId,
             SeedNoteId = "seed-note-id",
             ClusterNoteIds = ["seed-note-id"],
             TopicSummary = "A test topic",
-            Status = GenerationStatus.Approved,
+            Status = status,
             GeneratedAt = DateTime.UtcNow,
+        };
+        generation.Pieces.Add(new ContentPiece
+        {
+            Id = pieceId,
+            GenerationId = genId,
+            Medium = "blog",
+            Body = "Test blog body",
+            Status = ContentPieceStatus.Draft,
+            Sequence = 1,
+            CreatedAt = DateTime.UtcNow,
         });
+        db.ContentGenerations.Add(generation);
         await db.SaveChangesAsync();
-        return id;
+        return genId;
     }
+
+    /// <summary>Inserts an approved ContentGeneration directly via EF Core and returns its ID.</summary>
+    private Task<string> SeedApprovedGenerationAsync() =>
+        SeedGenerationAsync(GenerationStatus.Approved);
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -252,6 +269,29 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
         var response = await _client.GetAsync("/api/content/pieces/doesnotexist/export");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // ── DELETE /api/content/generations/{id} ─────────────────────────────────
+
+    [Fact]
+    public async Task DELETE_Generation_Returns404_WhenNotFound()
+    {
+        var response = await _client.DeleteAsync("/api/content/generations/doesnotexist");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DELETE_Generation_Returns204_AndRemovesGenerationWithPieces()
+    {
+        var id = await SeedGenerationAsync();
+
+        var deleteResponse = await _client.DeleteAsync($"/api/content/generations/{id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var getResponse = await _client.GetAsync($"/api/content/generations/{id}");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
     // ── POST /api/content/generations/{id}/regenerate ─────────────────────────
