@@ -79,6 +79,74 @@ public partial class ContentController : ControllerBase
             MapGeneration(generation));
     }
 
+    /// <summary>Regenerate all content for an existing generation using the same note cluster.</summary>
+    [HttpPost("generations/{id}/regenerate")]
+    [ProducesResponseType<ContentGenerationResponse>(201)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(409)]
+    public async Task<IActionResult> RegenerateGeneration(string id)
+    {
+        var existing = await _db.ContentGenerations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(g => g.Id == id);
+
+        if (existing is null)
+            return NotFound();
+
+        if (existing.Status == GenerationStatus.Approved)
+            return Conflict(new { error = "Cannot regenerate an approved generation." });
+
+        var notes = await _db.Notes
+            .AsNoTracking()
+            .Where(n => existing.ClusterNoteIds.Contains(n.Id))
+            .ToListAsync();
+
+        if (notes.Count == 0)
+            return Conflict(new { error = "None of the original cluster notes exist any longer." });
+
+        var cluster = new TopicCluster(existing.SeedNoteId, notes, existing.TopicSummary);
+        var generation = await _contentGeneration.GenerateContentAsync(cluster);
+
+        return CreatedAtAction(
+            nameof(GetGeneration),
+            new { id = generation.Id },
+            MapGeneration(generation));
+    }
+
+    /// <summary>Regenerate content pieces for a single medium on an existing generation.</summary>
+    [HttpPost("generations/{id}/regenerate/{medium}")]
+    [ProducesResponseType<List<ContentPieceResponse>>(200)]
+    [ProducesResponseType(400)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(409)]
+    public async Task<IActionResult> RegenerateMedium(string id, string medium)
+    {
+        if (medium is not ("blog" or "social"))
+            return BadRequest(new { error = "medium must be 'blog' or 'social'." });
+
+        var generation = await _db.ContentGenerations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(g => g.Id == id);
+
+        if (generation is null)
+            return NotFound();
+
+        if (generation.Status == GenerationStatus.Approved)
+            return Conflict(new { error = "Cannot regenerate an approved generation." });
+
+        var notes = await _db.Notes
+            .AsNoTracking()
+            .Where(n => generation.ClusterNoteIds.Contains(n.Id))
+            .ToListAsync();
+
+        if (notes.Count == 0)
+            return Conflict(new { error = "None of the original cluster notes exist any longer." });
+
+        var newPieces = await _contentGeneration.RegenerateMediumAsync(generation, notes, medium);
+
+        return Ok(newPieces.Select(MapPiece).ToList());
+    }
+
     /// <summary>List content generation runs with pagination.</summary>
     [HttpGet("generations")]
     [ProducesResponseType<PagedResult<ContentGenerationResponse>>(200)]

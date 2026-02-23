@@ -112,12 +112,15 @@ public class ContentGenerationService : IContentGenerationService
             });
         }
 
-        // Mark seed note as used
-        _db.UsedSeedNotes.Add(new UsedSeedNote
+        // Mark seed note as used (guard: skip if already tracked, e.g. during regeneration)
+        if (!await _db.UsedSeedNotes.AnyAsync(u => u.NoteId == cluster.SeedNoteId, cancellationToken))
         {
-            NoteId = cluster.SeedNoteId,
-            UsedAt = DateTime.UtcNow,
-        });
+            _db.UsedSeedNotes.Add(new UsedSeedNote
+            {
+                NoteId = cluster.SeedNoteId,
+                UsedAt = DateTime.UtcNow,
+            });
+        }
 
         _db.ContentGenerations.Add(generation);
         await _db.SaveChangesAsync(cancellationToken);
@@ -131,6 +134,86 @@ public class ContentGenerationService : IContentGenerationService
         ZettelTelemetry.ContentGenerated.Add(1);
 
         return generation;
+    }
+
+    public async Task<List<ContentPiece>> RegenerateMediumAsync(
+        ContentGeneration generation,
+        IReadOnlyList<Note> notes,
+        string medium,
+        CancellationToken cancellationToken = default)
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("content.regenerate_medium");
+        activity?.SetTag("content.generation_id", generation.Id);
+        activity?.SetTag("content.medium", medium);
+
+        _logger.LogInformation(
+            "Regenerating {Medium} pieces for generation {GenerationId}",
+            medium, generation.Id);
+
+        var voice = await LoadVoiceAsync(medium, cancellationToken);
+        var noteContext = BuildNoteContext(notes);
+
+        List<ContentPiece> newPieces;
+
+        if (medium == "blog")
+        {
+            var (title, body) = await GenerateBlogPostAsync(noteContext, voice, cancellationToken);
+            newPieces =
+            [
+                new ContentPiece
+                {
+                    Id = GenerateId(),
+                    GenerationId = generation.Id,
+                    Medium = "blog",
+                    Title = title,
+                    Body = body,
+                    Status = ContentPieceStatus.Draft,
+                    Sequence = 1,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            ];
+        }
+        else
+        {
+            // Place social posts after whatever non-social pieces remain
+            var nextSequence = await _db.ContentPieces
+                .Where(p => p.GenerationId == generation.Id && p.Medium != medium)
+                .MaxAsync(p => (int?)p.Sequence, cancellationToken) ?? 0;
+            nextSequence++;
+
+            var posts = await GenerateSocialPostsAsync(noteContext, voice, cancellationToken);
+            newPieces = posts.Select(post => new ContentPiece
+            {
+                Id = GenerateId(),
+                GenerationId = generation.Id,
+                Medium = "social",
+                Body = post,
+                Status = ContentPieceStatus.Draft,
+                Sequence = nextSequence++,
+                CreatedAt = DateTime.UtcNow,
+            }).ToList();
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        var draftPieces = await _db.ContentPieces
+            .Where(p => p.GenerationId == generation.Id
+                     && p.Medium == medium
+                     && p.Status == ContentPieceStatus.Draft)
+            .ToListAsync(cancellationToken);
+
+        _db.ContentPieces.RemoveRange(draftPieces);
+        _db.ContentPieces.AddRange(newPieces);
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Regenerated {Count} {Medium} pieces for generation {GenerationId}",
+            newPieces.Count, medium, generation.Id);
+
+        activity?.SetTag("content.piece_count", newPieces.Count);
+
+        return newPieces;
     }
 
     private async Task<(string styleNotes, List<string> examples)> LoadVoiceAsync(

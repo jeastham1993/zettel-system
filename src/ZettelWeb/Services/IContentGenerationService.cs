@@ -12,4 +12,15 @@ public interface IContentGenerationService
     Task<ContentGeneration> GenerateContentAsync(
         TopicCluster cluster,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Regenerate content pieces for a specific medium on an existing generation.
+    /// Replaces Draft pieces for that medium; Approved pieces are never touched.
+    /// Persists changes to the database.
+    /// </summary>
+    Task<List<ContentPiece>> RegenerateMediumAsync(
+        ContentGeneration generation,
+        IReadOnlyList<Note> notes,
+        string medium,
+        CancellationToken cancellationToken = default);
 }

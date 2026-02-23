@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using ZettelWeb.Data;
 using ZettelWeb.Models;
 using ZettelWeb.Tests.Fakes;
 
@@ -16,11 +17,35 @@ namespace ZettelWeb.Tests.Controllers;
 /// </summary>
 public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationTests.TestApp>
 {
+    private readonly TestApp _app;
     private readonly HttpClient _client;
 
     public ContentHttpIntegrationTests(TestApp app)
     {
+        _app = app;
         _client = app.CreateClient();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>Inserts an approved ContentGeneration directly via EF Core and returns its ID.</summary>
+    private async Task<string> SeedApprovedGenerationAsync()
+    {
+        using var scope = _app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ZettelDbContext>();
+
+        var id = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}{Random.Shared.Next(1000, 9999)}";
+        db.ContentGenerations.Add(new ContentGeneration
+        {
+            Id = id,
+            SeedNoteId = "seed-note-id",
+            ClusterNoteIds = ["seed-note-id"],
+            TopicSummary = "A test topic",
+            Status = GenerationStatus.Approved,
+            GeneratedAt = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+        return id;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -227,6 +252,60 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
         var response = await _client.GetAsync("/api/content/pieces/doesnotexist/export");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // ── POST /api/content/generations/{id}/regenerate ─────────────────────────
+
+    [Fact]
+    public async Task POST_RegenerateGeneration_Returns404_WhenNotFound()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/content/generations/doesnotexist/regenerate", new { });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_RegenerateGeneration_Returns409_WhenApproved()
+    {
+        var id = await SeedApprovedGenerationAsync();
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/content/generations/{id}/regenerate", new { });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    // ── POST /api/content/generations/{id}/regenerate/{medium} ────────────────
+
+    [Fact]
+    public async Task POST_RegenerateMedium_Returns404_WhenNotFound()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/content/generations/doesnotexist/regenerate/blog", new { });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_RegenerateMedium_Returns400_ForInvalidMedium()
+    {
+        // Use any ID — the medium validation happens before the DB lookup
+        var response = await _client.PostAsJsonAsync(
+            "/api/content/generations/anyid/regenerate/podcast", new { });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_RegenerateMedium_Returns409_WhenApproved()
+    {
+        var id = await SeedApprovedGenerationAsync();
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/content/generations/{id}/regenerate/blog", new { });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
     // ── DTOs (private, test-only) ─────────────────────────────────────────────
