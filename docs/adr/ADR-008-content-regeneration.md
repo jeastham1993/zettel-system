@@ -1,7 +1,7 @@
 # ADR-008: Content Regeneration Strategy
 
 Date: 2026-02-23
-Status: Proposed
+Status: Accepted
 
 ---
 
@@ -89,6 +89,31 @@ migration to add linkage.
 ## Related Decisions
 
 - ADR-001: Backend Architecture (ASP.NET Core, EF Core, PostgreSQL)
+
+---
+
+## Lessons Learned (2026-02-23)
+
+### Frontend scope was not included in the original design
+
+The design document and initial implementation covered only the backend endpoints.  The
+frontend API client functions and UI buttons were completed in a follow-up pass.  This is
+the pattern to avoid — see PAT-002 (Full-Stack Feature Completion).
+
+### HTTP method mismatch on pre-existing approve/reject endpoints
+
+During the frontend pass, a pre-existing bug was discovered: the `approvePiece` and
+`rejectPiece` client functions used `POST` while the backend declared `[HttpPut]`.  This
+caused silent `405 Method Not Allowed` failures in production that were not caught by any
+test.  Fixed as part of the same frontend PR.  See FE-002 for the full root cause and
+prevention steps.
+
+### What to do differently next time
+
+- Include frontend client + UI work in the same design scope, completion checklist, and
+  commit as the backend endpoints (PAT-002).
+- When writing any new API client function, open the controller side-by-side and verify
+  the HTTP verb before writing the first line (FE-002).
 
 ---
 

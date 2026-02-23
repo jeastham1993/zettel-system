@@ -2,7 +2,7 @@
 
 Searchable knowledge base of solved problems, patterns, and learnings.
 
-Last Updated: 2026-02-15
+Last Updated: 2026-02-23
 
 ## Database
 
@@ -16,6 +16,7 @@ Last Updated: 2026-02-15
 | ID | Title | Type | Tags |
 |----|-------|------|------|
 | [PAT-001](patterns/PAT-001-ef-core-migrations-with-pgvector.md) | EF Core Migrations with pgvector and custom indexes | pattern | ef-core, pgvector, migrations, indexes |
+| [PAT-002](patterns/PAT-002-full-stack-feature-completion.md) | Full-Stack Feature Completion: Backend and Frontend in One Unit | pattern | fullstack, api, frontend, workflow, checklist |
 
 ## Infrastructure
 
@@ -34,3 +35,4 @@ Last Updated: 2026-02-15
 | ID | Title | Type | Tags |
 |----|-------|------|------|
 | [FE-001](frontend/FE-001-react-router-data-router-required.md) | React Router useBlocker Requires a Data Router | problem-solution | react-router, useBlocker, data-router |
+| [FE-002](frontend/FE-002-api-client-http-method-mismatch.md) | Frontend API Client HTTP Method Must Match Backend Controller Attribute | problem-solution | http, 405, method-not-allowed, api-client, dotnet |
