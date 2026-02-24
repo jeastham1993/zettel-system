@@ -36,6 +36,15 @@ services:
       Capture__TelegramBotToken: ${TELEGRAM_BOT_TOKEN:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      Publishing__GitHub__Token: ${GITHUB_PAT:-}
+      Publishing__GitHub__Owner: "jeastham1993"
+      Publishing__GitHub__Repo: "James-Eastham-Blog"
+      Publishing__GitHub__Branch: "main"
+      Publishing__GitHub__ContentPath: "drafts"
+      Publishing__GitHub__Author: "James Eastham"
+      Publishing__Publer__ApiKey: ${PUBLER_API_KEY:-}
+      Publishing__Publer__Accounts__0__Id: "659070ccdb27974e47d908f5"
+      Publishing__Publer__Accounts__0__Platform: "linkedin"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`) || PathPrefix(`/health`)"

@@ -21,6 +21,7 @@ using ZettelWeb.Health;
 using ZettelWeb.Models;
 using ZettelWeb.Services;
 using ZettelWeb.Services.Publishing;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -269,6 +270,18 @@ using (var scope = app.Services.CreateScope())
 #pragma warning restore EF1003
     }
 }
+
+var publishingOpts = app.Services.GetRequiredService<IOptions<PublishingOptions>>().Value;
+var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+startupLogger.LogInformation(
+    "Publishing — GitHub configured: {GitHub} (token present: {Token}, owner: '{Owner}', repo: '{Repo}'), Publer configured: {Publer} (key present: {Key}, accounts: {Accounts})",
+    publishingOpts.GitHub.IsConfigured,
+    !string.IsNullOrEmpty(publishingOpts.GitHub.Token),
+    publishingOpts.GitHub.Owner,
+    publishingOpts.GitHub.Repo,
+    publishingOpts.Publer.IsConfigured,
+    !string.IsNullOrEmpty(publishingOpts.Publer.ApiKey),
+    publishingOpts.Publer.Accounts.Count);
 
 app.UseCors();
 app.UseRateLimiter();

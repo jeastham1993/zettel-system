@@ -9,12 +9,12 @@ public class PublishingOptions
 
 public class GitHubOptions
 {
-    public string? Token { get; init; }
-    public string Owner { get; init; } = "";
-    public string Repo { get; init; } = "";
-    public string Branch { get; init; } = "main";
-    public string ContentPath { get; init; } = "src/content/blog";
-    public string Author { get; init; } = "James Eastham";
+    public string? Token { get; set; }
+    public string Owner { get; set; } = "";
+    public string Repo { get; set; } = "";
+    public string Branch { get; set; } = "main";
+    public string ContentPath { get; set; } = "src/content/blog";
+    public string Author { get; set; } = "James Eastham";
 
     public bool IsConfigured =>
         !string.IsNullOrEmpty(Token) &&
@@ -24,9 +24,9 @@ public class GitHubOptions
 
 public class PublerOptions
 {
-    public string? ApiKey { get; init; }
-    public string? WorkspaceId { get; init; }
-    public List<PublerAccount> Accounts { get; init; } = [];
+    public string? ApiKey { get; set; }
+    public string? WorkspaceId { get; set; }
+    public List<PublerAccount> Accounts { get; set; } = [];
 
     public bool IsConfigured =>
         !string.IsNullOrEmpty(ApiKey) && Accounts.Count > 0;
@@ -34,7 +34,7 @@ public class PublerOptions
 
 public class PublerAccount
 {
-    public string Id { get; init; } = "";
+    public string Id { get; set; } = "";
     /// <summary>Publer network key, e.g. "linkedin", "twitter", "bluesky".</summary>
-    public string Platform { get; init; } = "linkedin";
+    public string Platform { get; set; } = "linkedin";
 }

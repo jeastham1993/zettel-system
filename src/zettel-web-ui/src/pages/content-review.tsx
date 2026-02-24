@@ -137,12 +137,16 @@ const PieceCard = React.memo(function PieceCard({ piece }: { piece: ContentPiece
       )
     },
     onError: (err: Error) => {
-      const msg = (err as ApiError).status === 422
-        ? 'Publishing is not configured for this medium'
-        : (err as ApiError).status === 409
-          ? 'Already sent to draft'
-          : 'Failed to send to draft'
-      toast.error(msg)
+      const apiErr = err as ApiError
+      if (apiErr.status === 422) {
+        let detail: string | undefined
+        try { detail = JSON.parse(apiErr.message)?.error } catch { /* raw text */ }
+        toast.error('Publishing not configured', { description: detail ?? apiErr.message })
+      } else if (apiErr.status === 409) {
+        toast.error('Already sent to draft')
+      } else {
+        toast.error('Failed to send to draft')
+      }
     },
   })
 
