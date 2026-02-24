@@ -20,6 +20,7 @@ using ZettelWeb.Data;
 using ZettelWeb.Health;
 using ZettelWeb.Models;
 using ZettelWeb.Services;
+using ZettelWeb.Services.Publishing;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -103,6 +104,7 @@ builder.Services.AddScoped<INoteService>(sp =>
 builder.Services.AddScoped<IImportService, ImportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<IGraphService, GraphService>();
+builder.Services.AddScoped<IKbHealthService, KbHealthService>();
 builder.Services.Configure<CaptureConfig>(builder.Configuration.GetSection("Capture"));
 builder.Services.AddScoped<CaptureService>();
 builder.Services.AddScoped<IDiscoveryService, DiscoveryService>();
@@ -170,6 +172,14 @@ else
 }
 
 builder.Services.AddScoped<IContentGenerationService, ContentGenerationService>();
+
+// ── Publishing services ────────────────────────────────────
+builder.Services.Configure<PublishingOptions>(
+    builder.Configuration.GetSection(PublishingOptions.SectionName));
+builder.Services.AddHttpClient("GitHub", c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient("Publer", c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddKeyedScoped<IPublishingService, GitHubPublishingService>("blog");
+builder.Services.AddKeyedScoped<IPublishingService, PublerPublishingService>("social");
 
 if (string.Equals(
     builder.Configuration["ContentGeneration:Schedule:Enabled"], "true",

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using ZettelWeb.Data;
 using ZettelWeb.Models;
 using ZettelWeb.Services;
+using ZettelWeb.Services.Publishing;
 
 namespace ZettelWeb.Controllers;
 
@@ -39,7 +40,15 @@ public record ContentPieceResponse(
     ContentPieceStatus Status,
     int Sequence,
     DateTime CreatedAt,
-    DateTime? ApprovedAt);
+    DateTime? ApprovedAt,
+    string? Description,
+    List<string> GeneratedTags,
+    string? EditorFeedback,
+    DateTime? SentToDraftAt,
+    string? DraftReference);
+
+public record UpdateDescriptionRequest([Required] string Description);
+public record UpdateTagsRequest([Required] List<string> Tags);
 
 /// <summary>Manages generated content — generation, review, approval, and export.</summary>
 [ApiController]
@@ -50,15 +59,21 @@ public partial class ContentController : ControllerBase
     private readonly ZettelDbContext _db;
     private readonly ITopicDiscoveryService _topicDiscovery;
     private readonly IContentGenerationService _contentGeneration;
+    private readonly IPublishingService _blog;
+    private readonly IPublishingService _social;
 
     public ContentController(
         ZettelDbContext db,
         ITopicDiscoveryService topicDiscovery,
-        IContentGenerationService contentGeneration)
+        IContentGenerationService contentGeneration,
+        [FromKeyedServices("blog")] IPublishingService blog,
+        [FromKeyedServices("social")] IPublishingService social)
     {
         _db = db;
         _topicDiscovery = topicDiscovery;
         _contentGeneration = contentGeneration;
+        _blog = blog;
+        _social = social;
     }
 
     /// <summary>Trigger a manual content generation run.</summary>
@@ -83,15 +98,15 @@ public partial class ContentController : ControllerBase
     [HttpDelete("generations/{id}")]
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
-    public async Task<IActionResult> DeleteGeneration(string id)
+    public async Task<IActionResult> DeleteGeneration(string id, CancellationToken ct)
     {
-        var generation = await _db.ContentGenerations.FindAsync(id);
+        var generation = await _db.ContentGenerations.FindAsync(new object[] { id }, ct);
 
         if (generation is null)
             return NotFound();
 
         _db.ContentGenerations.Remove(generation);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         return NoContent();
     }
@@ -257,15 +272,15 @@ public partial class ContentController : ControllerBase
     [HttpPut("pieces/{id}/approve")]
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
-    public async Task<IActionResult> ApprovePiece(string id)
+    public async Task<IActionResult> ApprovePiece(string id, CancellationToken ct)
     {
-        var piece = await _db.ContentPieces.FindAsync(id);
+        var piece = await _db.ContentPieces.FindAsync(new object[] { id }, ct);
         if (piece is null)
             return NotFound();
 
         piece.Status = ContentPieceStatus.Approved;
         piece.ApprovedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         return NoContent();
     }
@@ -274,14 +289,14 @@ public partial class ContentController : ControllerBase
     [HttpPut("pieces/{id}/reject")]
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
-    public async Task<IActionResult> RejectPiece(string id)
+    public async Task<IActionResult> RejectPiece(string id, CancellationToken ct)
     {
-        var piece = await _db.ContentPieces.FindAsync(id);
+        var piece = await _db.ContentPieces.FindAsync(new object[] { id }, ct);
         if (piece is null)
             return NotFound();
 
         piece.Status = ContentPieceStatus.Rejected;
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         return NoContent();
     }
@@ -314,6 +329,111 @@ public partial class ContentController : ControllerBase
             filename);
     }
 
+    /// <summary>Update the description of a content piece (used before sending to draft).</summary>
+    [HttpPut("pieces/{id}/description")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(400)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> UpdateDescription(string id, [FromBody] UpdateDescriptionRequest body, CancellationToken ct)
+    {
+        var piece = await _db.ContentPieces.FindAsync(new object[] { id }, ct);
+        if (piece is null)
+            return NotFound();
+
+        piece.Description = body.Description;
+        await _db.SaveChangesAsync(ct);
+
+        return NoContent();
+    }
+
+    /// <summary>Update the tags of a content piece.</summary>
+    [HttpPut("pieces/{id}/tags")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(400)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> UpdateTags(string id, [FromBody] UpdateTagsRequest body, CancellationToken ct)
+    {
+        var piece = await _db.ContentPieces.FindAsync(new object[] { id }, ct);
+        if (piece is null)
+            return NotFound();
+
+        piece.GeneratedTags = body.Tags;
+        await _db.SaveChangesAsync(ct);
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Send an approved blog piece to GitHub as a draft, or a social piece to Publer as a draft.
+    /// Idempotent: once sent, returns 409 to prevent duplicate submissions.
+    /// </summary>
+    [HttpPost("pieces/{id}/send-to-draft")]
+    [ProducesResponseType<ContentPieceResponse>(200)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(409)]
+    [ProducesResponseType(422)]
+    public async Task<IActionResult> SendToDraft(string id, CancellationToken ct)
+    {
+        var piece = await _db.ContentPieces.FindAsync(new object[] { id }, ct);
+        if (piece is null)
+            return NotFound();
+
+        // Fast path: already sent
+        if (piece.SentToDraftAt is not null)
+            return Conflict(new { error = "This piece has already been sent to draft.", reference = piece.DraftReference });
+
+        // I-3: Enforce Approved status
+        if (piece.Status != ContentPieceStatus.Approved)
+            return UnprocessableEntity(new { error = "Only approved pieces can be sent to draft." });
+
+        // I-1: Select publishing service by medium
+        var service = piece.Medium == "blog" ? _blog : _social;
+
+        if (!service.IsConfigured)
+            return UnprocessableEntity(new { error = $"Publishing service for '{piece.Medium}' is not configured." });
+
+        // I-2: Atomically claim the piece before calling the external service
+        var claimed = await _db.ContentPieces
+            .Where(p => p.Id == id && p.SentToDraftAt == null)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(p => p.SentToDraftAt, DateTime.UtcNow)
+                .SetProperty(p => p.DraftReference, "sending"),
+                ct);
+
+        if (claimed == 0)
+            return Conflict(new { error = "This piece has already been sent to draft." });
+
+        string reference;
+        try
+        {
+            reference = await service.SendToDraftAsync(piece, ct);
+        }
+        catch
+        {
+            // Compensating action: reset the claim so the request can be retried
+            await _db.ContentPieces
+                .Where(p => p.Id == id)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.SentToDraftAt, (DateTime?)null)
+                    .SetProperty(p => p.DraftReference, (string?)null),
+                    ct);
+            throw;
+        }
+
+        // Update with real reference and reload for response
+        await _db.ContentPieces
+            .Where(p => p.Id == id)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(p => p.DraftReference, reference),
+                ct);
+
+        var updated = await _db.ContentPieces
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id, ct);
+
+        return Ok(MapPiece(updated!));
+    }
+
     private static string SanitizeFilename(string title)
     {
         var sanitized = InvalidFilenameCharsRegex().Replace(title, "-");
@@ -333,7 +453,9 @@ public partial class ContentController : ControllerBase
 
     private static ContentPieceResponse MapPiece(ContentPiece p) =>
         new(p.Id, p.GenerationId, p.Medium, p.Title, p.Body,
-            p.Status, p.Sequence, p.CreatedAt, p.ApprovedAt);
+            p.Status, p.Sequence, p.CreatedAt, p.ApprovedAt,
+            p.Description, p.GeneratedTags, p.EditorFeedback,
+            p.SentToDraftAt, p.DraftReference);
 
     [GeneratedRegex(@"[^\w\s-]")]
     private static partial Regex InvalidFilenameCharsRegex();
