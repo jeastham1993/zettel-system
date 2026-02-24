@@ -41,3 +41,11 @@ public record ConnectionSuggestion(
 
 /// <summary>Request body for inserting a wikilink into an orphan note.</summary>
 public record AddLinkRequest(string TargetNoteId);
+
+/// <summary>A permanent note that does not yet have a completed embedding.</summary>
+public record UnembeddedNote(
+    string Id,
+    string Title,
+    DateTime CreatedAt,
+    EmbedStatus EmbedStatus,
+    string? EmbedError);

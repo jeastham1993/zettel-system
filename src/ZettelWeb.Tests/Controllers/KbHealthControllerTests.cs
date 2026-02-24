@@ -62,11 +62,56 @@ public class KbHealthControllerTests
         Assert.IsType<NotFoundResult>(result);
     }
 
+    // ── GET /api/kb-health/missing-embeddings ────────────────────────────
+
+    [Fact]
+    public async Task GetMissingEmbeddings_Returns200WithList()
+    {
+        var controller = CreateController(new FakeKbHealthService
+        {
+            MissingEmbeddingsResult = new List<UnembeddedNote>
+            {
+                new("n1", "Pending Note", DateTime.UtcNow, EmbedStatus.Pending, null),
+                new("n2", "Failed Note", DateTime.UtcNow, EmbedStatus.Failed, "timeout"),
+            }
+        });
+
+        var result = await controller.GetMissingEmbeddings();
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var list = Assert.IsAssignableFrom<IReadOnlyList<UnembeddedNote>>(ok.Value);
+        Assert.Equal(2, list.Count);
+    }
+
+    // ── POST /api/kb-health/missing-embeddings/{id}/requeue ──────────────
+
+    [Fact]
+    public async Task RequeueEmbedding_Returns200WhenNoteFound()
+    {
+        var controller = CreateController(new FakeKbHealthService { RequeueResult = 1 });
+
+        var result = await controller.RequeueEmbedding("n1");
+
+        Assert.IsType<OkResult>(result);
+    }
+
+    [Fact]
+    public async Task RequeueEmbedding_Returns404WhenNoteNotFound()
+    {
+        var controller = CreateController(new FakeKbHealthService { RequeueResult = 0 });
+
+        var result = await controller.RequeueEmbedding("missing");
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
     // ── Fake ────────────────────────────────────────────────────────────
 
     private class FakeKbHealthService : IKbHealthService
     {
         public Note? InsertResult { get; init; }
+        public IReadOnlyList<UnembeddedNote> MissingEmbeddingsResult { get; init; } = Array.Empty<UnembeddedNote>();
+        public int RequeueResult { get; init; }
 
         public Task<KbHealthOverview> GetOverviewAsync() =>
             Task.FromResult(new KbHealthOverview(
@@ -81,5 +126,11 @@ public class KbHealthControllerTests
 
         public Task<Note?> InsertWikilinkAsync(string orphanNoteId, string targetNoteId) =>
             Task.FromResult(InsertResult);
+
+        public Task<IReadOnlyList<UnembeddedNote>> GetNotesWithoutEmbeddingsAsync() =>
+            Task.FromResult(MissingEmbeddingsResult);
+
+        public Task<int> RequeueEmbeddingAsync(string noteId) =>
+            Task.FromResult(RequeueResult);
     }
 }

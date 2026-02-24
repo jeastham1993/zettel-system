@@ -12,6 +12,8 @@ import {
   ExternalLink,
   FileText,
   Layers,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,7 +28,7 @@ import {
 import { toast } from 'sonner'
 import { relativeDate } from '@/lib/format'
 import * as kbHealthApi from '@/api/kb-health'
-import type { UnconnectedNote, ConnectionSuggestion } from '@/api/types'
+import type { UnconnectedNote, ConnectionSuggestion, UnembeddedNote } from '@/api/types'
 
 // ── Scorecard ────────────────────────────────────────────────────────────────
 
@@ -169,6 +171,106 @@ function LinkPreviewDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ── Embed status badge ───────────────────────────────────────────────────────
+
+const embedStatusStyles: Record<string, string> = {
+  Failed: 'bg-destructive/10 text-destructive border-destructive/20',
+  Stale: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+  Pending: 'bg-muted text-muted-foreground border-border/50',
+  Processing: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+}
+
+function EmbedStatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${embedStatusStyles[status] ?? 'bg-muted text-muted-foreground border-border/50'}`}
+    >
+      {status}
+    </span>
+  )
+}
+
+// ── Missing Embeddings section ───────────────────────────────────────────────
+
+function MissingEmbeddingsSection() {
+  const queryClient = useQueryClient()
+
+  const { data: notes, isLoading } = useQuery({
+    queryKey: ['kb-health-missing-embeddings'],
+    queryFn: kbHealthApi.getNotesWithoutEmbeddings,
+  })
+
+  const requeueMutation = useMutation({
+    mutationFn: (noteId: string) => kbHealthApi.requeueNoteEmbedding(noteId),
+    onSuccess: () => {
+      toast.success('Note queued for embedding')
+      queryClient.invalidateQueries({ queryKey: ['kb-health-missing-embeddings'] })
+      queryClient.invalidateQueries({ queryKey: ['kb-health'] })
+    },
+    onError: () => {
+      toast.error('Failed to requeue note')
+    },
+  })
+
+  return (
+    <section>
+      <div className="mb-3 flex items-center gap-2">
+        <AlertCircle className="h-4 w-4 text-muted-foreground" />
+        <h2 className="font-medium">Missing Embeddings</h2>
+        {notes && (
+          <Badge variant="secondary" className="ml-auto">
+            {notes.length}
+          </Badge>
+        )}
+      </div>
+
+      {isLoading && <Skeleton className="h-32 w-full rounded-lg" />}
+
+      {!isLoading && notes?.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          All permanent notes have completed embeddings.
+        </p>
+      )}
+
+      {!isLoading && notes && notes.length > 0 && (
+        <ul className="space-y-1.5">
+          {notes.map((note: UnembeddedNote) => (
+            <li
+              key={note.id}
+              className="flex items-center justify-between rounded-md border border-border/50 bg-card px-3 py-2 text-sm"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <Link
+                    to={`/notes/${note.id}`}
+                    className="truncate font-medium hover:underline"
+                  >
+                    {note.title}
+                  </Link>
+                  <EmbedStatusBadge status={note.embedStatus} />
+                </div>
+                {note.embedError && (
+                  <p className="mt-0.5 truncate text-xs text-destructive">{note.embedError}</p>
+                )}
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-3 shrink-0 gap-1.5"
+                disabled={requeueMutation.isPending}
+                onClick={() => requeueMutation.mutate(note.id)}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Requeue
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 
@@ -390,6 +492,9 @@ export function KbHealthPage() {
               </ul>
             )}
           </section>
+
+          {/* Missing Embeddings */}
+          <MissingEmbeddingsSection />
         </div>
 
         {/* Right column: suggestion panel */}

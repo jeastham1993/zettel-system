@@ -235,3 +235,11 @@ export interface ConnectionSuggestion {
   title: string
   similarity: number
 }
+
+export interface UnembeddedNote {
+  id: string
+  title: string
+  createdAt: string
+  embedStatus: EmbedStatus
+  embedError: string | null
+}

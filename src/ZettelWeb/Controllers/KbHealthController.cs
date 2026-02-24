@@ -58,4 +58,31 @@ public class KbHealthController : ControllerBase
         if (note is null) return NotFound();
         return Ok(note);
     }
+
+    /// <summary>
+    /// All permanent notes whose embedding is not yet completed, ordered by status then newest first.
+    /// Includes Failed, Pending, Processing, and Stale notes.
+    /// </summary>
+    [HttpGet("missing-embeddings")]
+    [ProducesResponseType<IReadOnlyList<UnembeddedNote>>(200)]
+    public async Task<IActionResult> GetMissingEmbeddings()
+    {
+        var notes = await _kbHealth.GetNotesWithoutEmbeddingsAsync();
+        return Ok(notes);
+    }
+
+    /// <summary>
+    /// Reset a note's embed status to Pending so the background worker picks it up again.
+    /// Clears any previous error and resets the retry counter.
+    /// </summary>
+    /// <param name="id">The note ID to requeue.</param>
+    [HttpPost("missing-embeddings/{id}/requeue")]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> RequeueEmbedding(string id)
+    {
+        var count = await _kbHealth.RequeueEmbeddingAsync(id);
+        if (count == 0) return NotFound();
+        return Ok();
+    }
 }

@@ -226,6 +226,37 @@ public class KbHealthService : IKbHealthService
         return orphan;
     }
 
+    public async Task<IReadOnlyList<UnembeddedNote>> GetNotesWithoutEmbeddingsAsync()
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.get_missing_embeddings");
+
+        return await _db.Notes
+            .AsNoTracking()
+            .Where(n => n.Status == NoteStatus.Permanent && n.EmbedStatus != EmbedStatus.Completed)
+            .OrderBy(n => n.EmbedStatus)
+            .ThenByDescending(n => n.CreatedAt)
+            .Select(n => new UnembeddedNote(n.Id, n.Title, n.CreatedAt, n.EmbedStatus, n.EmbedError))
+            .ToListAsync();
+    }
+
+    public async Task<int> RequeueEmbeddingAsync(string noteId)
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.requeue_embedding");
+        activity?.SetTag("kb_health.note_id", noteId);
+
+        var note = await _db.Notes.FindAsync(noteId);
+        if (note is null) return 0;
+
+        note.EmbedStatus = EmbedStatus.Pending;
+        note.EmbedError = null;
+        note.EmbedRetryCount = 0;
+
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Embedding requeued for note {NoteId}", noteId);
+        return 1;
+    }
+
     /// <summary>
     /// Union-find on the adjacency map to identify connected components.
     /// Returns top <see cref="TopClusterCount"/> components (by size, minimum 2 members),

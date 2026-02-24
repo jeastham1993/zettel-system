@@ -7,4 +7,6 @@ public interface IKbHealthService
     Task<KbHealthOverview> GetOverviewAsync();
     Task<IReadOnlyList<ConnectionSuggestion>> GetConnectionSuggestionsAsync(string noteId, int limit = 5);
     Task<Note?> InsertWikilinkAsync(string orphanNoteId, string targetNoteId);
+    Task<IReadOnlyList<UnembeddedNote>> GetNotesWithoutEmbeddingsAsync();
+    Task<int> RequeueEmbeddingAsync(string noteId);
 }

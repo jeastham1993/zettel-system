@@ -259,6 +259,90 @@ public class KbHealthServiceTests
         Assert.True(updated!.UpdatedAt >= before);
     }
 
+    // ── GetNotesWithoutEmbeddingsAsync ──────────────────────────────────────
+
+    [Fact]
+    public async Task GetNotesWithoutEmbeddings_ReturnsOnlyPermanentNonCompletedNotes()
+    {
+        var db = CreateDb();
+        db.Notes.AddRange(
+            new Note { Id = "c1", Title = "Completed", Content = "C", Status = NoteStatus.Permanent, EmbedStatus = EmbedStatus.Completed },
+            new Note { Id = "p1", Title = "Pending", Content = "C", Status = NoteStatus.Permanent, EmbedStatus = EmbedStatus.Pending },
+            new Note { Id = "f1", Title = "Failed", Content = "C", Status = NoteStatus.Permanent, EmbedStatus = EmbedStatus.Failed, EmbedError = "timeout" },
+            new Note { Id = "fl1", Title = "Fleeting", Content = "C", Status = NoteStatus.Fleeting, EmbedStatus = EmbedStatus.Pending });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).GetNotesWithoutEmbeddingsAsync();
+
+        Assert.Equal(2, result.Count);
+        Assert.DoesNotContain(result, n => n.Id == "c1");
+        Assert.DoesNotContain(result, n => n.Id == "fl1");
+    }
+
+    [Fact]
+    public async Task GetNotesWithoutEmbeddings_IncludesEmbedErrorInResult()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note
+        {
+            Id = "f1", Title = "Failed", Content = "C",
+            Status = NoteStatus.Permanent,
+            EmbedStatus = EmbedStatus.Failed,
+            EmbedError = "connection refused"
+        });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).GetNotesWithoutEmbeddingsAsync();
+
+        Assert.Single(result);
+        Assert.Equal("connection refused", result[0].EmbedError);
+        Assert.Equal(EmbedStatus.Failed, result[0].EmbedStatus);
+    }
+
+    [Fact]
+    public async Task GetNotesWithoutEmbeddings_EmptyWhenAllCompleted()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note { Id = "n1", Title = "Done", Content = "C", Status = NoteStatus.Permanent, EmbedStatus = EmbedStatus.Completed });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).GetNotesWithoutEmbeddingsAsync();
+
+        Assert.Empty(result);
+    }
+
+    // ── RequeueEmbeddingAsync ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RequeueEmbedding_SetsPendingStatusAndClearsError()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note
+        {
+            Id = "f1", Title = "Failed", Content = "C",
+            EmbedStatus = EmbedStatus.Failed,
+            EmbedError = "timeout",
+            EmbedRetryCount = 3
+        });
+        await db.SaveChangesAsync();
+
+        var count = await CreateService(db).RequeueEmbeddingAsync("f1");
+
+        Assert.Equal(1, count);
+        var note = await db.Notes.FindAsync("f1");
+        Assert.Equal(EmbedStatus.Pending, note!.EmbedStatus);
+        Assert.Null(note.EmbedError);
+        Assert.Equal(0, note.EmbedRetryCount);
+    }
+
+    [Fact]
+    public async Task RequeueEmbedding_ReturnsZeroWhenNoteNotFound()
+    {
+        var db = CreateDb();
+        var count = await CreateService(db).RequeueEmbeddingAsync("missing");
+        Assert.Equal(0, count);
+    }
+
     // ── GetConnectionSuggestionsAsync ───────────────────────────────────────
 
     [Fact]
