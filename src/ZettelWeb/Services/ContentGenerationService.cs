@@ -50,8 +50,11 @@ public class ContentGenerationService : IContentGenerationService
         var noteContext = BuildNoteContext(cluster.Notes);
 
         // Generate blog post
-        var (blogTitle, blogBody) = await GenerateBlogPostAsync(
+        var (blogTitle, blogDescription, blogTags, blogBody) = await GenerateBlogPostAsync(
             noteContext, blogVoice, cancellationToken);
+
+        // Run editor review on the blog post (best-effort — failure is non-fatal)
+        var editorFeedback = await GenerateEditorFeedbackAsync(blogTitle, blogBody, cancellationToken);
 
         // Generate social posts
         var socialPosts = await GenerateSocialPostsAsync(
@@ -91,6 +94,9 @@ public class ContentGenerationService : IContentGenerationService
             GenerationId = generationId,
             Medium = "blog",
             Title = blogTitle,
+            Description = blogDescription,
+            GeneratedTags = blogTags,
+            EditorFeedback = editorFeedback,
             Body = blogBody,
             Status = ContentPieceStatus.Draft,
             Sequence = sequence++,
@@ -157,7 +163,8 @@ public class ContentGenerationService : IContentGenerationService
 
         if (medium == "blog")
         {
-            var (title, body) = await GenerateBlogPostAsync(noteContext, voice, cancellationToken);
+            var (title, description, tags, body) = await GenerateBlogPostAsync(noteContext, voice, cancellationToken);
+            var editorFeedback = await GenerateEditorFeedbackAsync(title, body, cancellationToken);
             newPieces =
             [
                 new ContentPiece
@@ -166,6 +173,9 @@ public class ContentGenerationService : IContentGenerationService
                     GenerationId = generation.Id,
                     Medium = "blog",
                     Title = title,
+                    Description = description,
+                    GeneratedTags = tags,
+                    EditorFeedback = editorFeedback,
                     Body = body,
                     Status = ContentPieceStatus.Draft,
                     Sequence = 1,
@@ -252,7 +262,7 @@ public class ContentGenerationService : IContentGenerationService
         return sb.ToString();
     }
 
-    private async Task<(string title, string body)> GenerateBlogPostAsync(
+    private async Task<(string title, string? description, List<string> tags, string body)> GenerateBlogPostAsync(
         string noteContext,
         (string styleNotes, List<string> examples) voice,
         CancellationToken cancellationToken)
@@ -262,10 +272,12 @@ public class ContentGenerationService : IContentGenerationService
             Write a blog post based on the following notes from my knowledge base.
             Draw connections between the ideas and present them as a cohesive article.
 
-            Format your response as:
-            # [Title]
+            Format your response exactly as:
+            TITLE: [Title here]
+            DESCRIPTION: [One-sentence SEO description]
+            TAGS: [tag1, tag2, tag3]
 
-            [Body in markdown]
+            [Body in markdown, starting on the line after the blank line]
 
             --- NOTES ---
             {noteContext}
@@ -285,6 +297,48 @@ public class ContentGenerationService : IContentGenerationService
 
         var text = response.Text ?? "";
         return ParseBlogResponse(text);
+    }
+
+    private async Task<string?> GenerateEditorFeedbackAsync(
+        string title, string body, CancellationToken cancellationToken)
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("content.editor_feedback");
+        activity?.SetTag("content.piece_title", title);
+
+        try
+        {
+            var userPrompt = $"""
+                You are a careful editor reviewing a blog post draft. Provide concise, specific feedback on:
+
+                1. **Spelling & Grammar** — flag any errors
+                2. **Sloppy thinking** — vague claims, logical gaps, areas to expand or evidence
+                3. **AI tells** — phrases that sound generic, hedging, or machine-generated
+
+                Do NOT rewrite the post. Return only a bullet-point list of recommendations.
+                If the post is clean in a category, say "✓ No issues found."
+
+                --- BLOG POST ---
+                Title: {title}
+
+                {body}
+                """;
+
+            var response = await _chatClient.GetResponseAsync(
+                [new ChatMessage(ChatRole.User, userPrompt)],
+                new ChatOptions
+                {
+                    MaxOutputTokens = 1000,
+                    Temperature = 0.3f,
+                },
+                cancellationToken);
+
+            return response.Text?.Trim();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Editor feedback generation failed for blog post '{Title}' — continuing without it", title);
+            return null;
+        }
     }
 
     private async Task<List<string>> GenerateSocialPostsAsync(
@@ -352,8 +406,10 @@ public class ContentGenerationService : IContentGenerationService
         sb.AppendLine("- Full post (800-1,500 words) when the material is rich");
         sb.AppendLine("- Focused insight (300-600 words) when the material is thinner");
         sb.AppendLine();
-        sb.AppendLine("Output format:");
-        sb.AppendLine("# [Title]");
+        sb.AppendLine("Output format (first 3 lines are required headers, then a blank line, then the body):");
+        sb.AppendLine("TITLE: [Title here]");
+        sb.AppendLine("DESCRIPTION: [One-sentence SEO description, max 160 chars]");
+        sb.AppendLine("TAGS: [tag1, tag2, tag3]");
         sb.AppendLine();
         sb.AppendLine("[Body in markdown]");
 
@@ -395,25 +451,76 @@ public class ContentGenerationService : IContentGenerationService
         return sb.ToString();
     }
 
-    private static (string title, string body) ParseBlogResponse(string text)
+    private static (string title, string? description, List<string> tags, string body) ParseBlogResponse(string text)
     {
         var lines = text.Split('\n');
         string title = "Untitled";
+        string? description = null;
+        List<string> tags = [];
         var bodyStart = 0;
 
-        for (var i = 0; i < lines.Length; i++)
+        // Try new structured format: TITLE:/DESCRIPTION:/TAGS: headers.
+        // Skip any preamble lines before the first structured header so that
+        // LLM output like "Sure! Here is your blog post:" does not abort parsing.
+        var foundStructuredHeader = false;
+        var i = 0;
+        while (i < lines.Length)
         {
-            var line = lines[i].Trim();
-            if (line.StartsWith("# ") && !line.StartsWith("## "))
+            var line = lines[i].TrimStart();
+            if (line.StartsWith("TITLE:", StringComparison.OrdinalIgnoreCase))
             {
-                title = line[2..].Trim();
+                title = line["TITLE:".Length..].Trim();
+                foundStructuredHeader = true;
+            }
+            else if (line.StartsWith("DESCRIPTION:", StringComparison.OrdinalIgnoreCase))
+            {
+                description = line["DESCRIPTION:".Length..].Trim() ?? null;
+                foundStructuredHeader = true;
+            }
+            else if (line.StartsWith("TAGS:", StringComparison.OrdinalIgnoreCase))
+            {
+                tags = (line["TAGS:".Length..].Trim() ?? "")
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToList();
+                foundStructuredHeader = true;
+            }
+            else if (string.IsNullOrWhiteSpace(line) && foundStructuredHeader)
+            {
+                // Blank line after headers signals start of body
                 bodyStart = i + 1;
                 break;
+            }
+            else if (!string.IsNullOrWhiteSpace(line) && foundStructuredHeader)
+            {
+                // Non-blank line after we already parsed at least one header
+                // means headers are done and body starts here (no blank separator)
+                bodyStart = i;
+                break;
+            }
+            // else: preamble line before any structured header — skip it
+            i++;
+        }
+
+        // Fallback: legacy "# Title" format (used when no structured headers found)
+        if (bodyStart == 0 && title == "Untitled")
+        {
+            for (i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+                if (line.StartsWith("# ") && !line.StartsWith("## "))
+                {
+                    title = line[2..].Trim();
+                    bodyStart = i + 1;
+                    break;
+                }
             }
         }
 
         var body = string.Join('\n', lines.Skip(bodyStart)).Trim();
-        return (title, body);
+        // Ensure no null/empty propagation: normalise empty strings to sensible defaults
+        title = string.IsNullOrWhiteSpace(title) ? "Untitled" : title;
+        description = string.IsNullOrWhiteSpace(description) ? null : description;
+        return (title, description, tags, body);
     }
 
     private static List<string> ParseSocialResponse(string text)
