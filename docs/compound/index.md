@@ -2,7 +2,7 @@
 
 Searchable knowledge base of solved problems, patterns, and learnings.
 
-Last Updated: 2026-02-24
+Last Updated: 2026-02-24 (session 2)
 
 ## Database
 
@@ -18,11 +18,18 @@ Last Updated: 2026-02-24
 | [PAT-001](patterns/PAT-001-ef-core-migrations-with-pgvector.md) | EF Core Migrations with pgvector and custom indexes | pattern | ef-core, pgvector, migrations, indexes |
 | [PAT-002](patterns/PAT-002-full-stack-feature-completion.md) | Full-Stack Feature Completion: Backend and Frontend in One Unit | pattern | fullstack, api, frontend, workflow, checklist |
 
+## .NET
+
+| ID | Title | Type | Tags |
+|----|-------|------|------|
+| [DN-001](dotnet/DN-001-options-init-vs-set-configuration-binding.md) | .NET Options Classes: Use `set`, Not `init`, for Configuration Binding | problem-solution | dotnet, options-pattern, configuration-binding, init, set |
+
 ## Infrastructure
 
 | ID | Title | Type | Tags |
 |----|-------|------|------|
 | [INFRA-001](infrastructure/INFRA-001-ollama-embedding-context-limit.md) | Ollama Embedding Model Context Length Exceeded | problem-solution | ollama, embedding, nomic-embed-text, truncation |
+| [INFRA-002](infrastructure/INFRA-002-startup-configuration-logging.md) | Startup Configuration Logging for Deployment Debugging | pattern | configuration, startup, logging, aspnetcore, deployment |
 
 ## Mobile
 
