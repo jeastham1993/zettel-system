@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import {
-  Activity,
   Unlink,
   Network,
   Sprout,
@@ -11,6 +10,8 @@ import {
   Link2,
   Loader2,
   ExternalLink,
+  FileText,
+  Layers,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -203,7 +204,7 @@ export function KbHealthPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold">Knowledge Health</h1>
+        <h1 className="font-serif text-2xl font-bold tracking-tight">Knowledge Health</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Weekly view of your KB's structure — clusters, orphans, and untapped seeds.
         </p>
@@ -220,13 +221,13 @@ export function KbHealthPage() {
             <ScoreCard
               label="Notes"
               value={scorecard?.totalNotes ?? 0}
-              icon={Activity}
+              icon={FileText}
               sub="permanent"
             />
             <ScoreCard
               label="Embedded"
               value={`${scorecard?.embeddedPercent ?? 0}%`}
-              icon={Activity}
+              icon={Layers}
               sub="with vectors"
             />
             <ScoreCard

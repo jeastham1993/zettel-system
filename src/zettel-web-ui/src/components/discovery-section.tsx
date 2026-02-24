@@ -122,7 +122,7 @@ export function DiscoverySection() {
 
   return (
     <div className="mb-6">
-      <div className="mb-3 flex items-center gap-3">
+      <div className="mb-3 space-y-2">
         <h2 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           <Lightbulb className="h-3.5 w-3.5" />
           Rediscover

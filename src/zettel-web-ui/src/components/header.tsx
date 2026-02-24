@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { Plus, Search, GitBranch, Inbox, Menu, Sparkles, Mic, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import {
   Tooltip,
   TooltipContent,
@@ -56,8 +57,8 @@ export function Header({ onOpenSearch }: HeaderProps) {
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/new" className="gap-1.5 text-muted-foreground">
+              <Button variant="default" size="sm" asChild>
+                <Link to="/new" className="gap-1.5">
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">New</span>
                 </Link>
@@ -83,6 +84,8 @@ export function Header({ onOpenSearch }: HeaderProps) {
               Inbox{count > 0 ? ` (${count})` : ''}
             </TooltipContent>
           </Tooltip>
+
+          <Separator orientation="vertical" className="h-4" />
 
           <Tooltip>
             <TooltipTrigger asChild>

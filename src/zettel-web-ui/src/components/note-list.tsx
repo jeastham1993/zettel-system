@@ -102,19 +102,16 @@ export function NoteList() {
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+      <div className="mb-3 flex flex-wrap items-center gap-1">
         {typeFilters.map((f) => (
-          <button
+          <Button
             key={f.label}
+            variant={typeFilter === f.value ? 'secondary' : 'ghost'}
+            size="xs"
             onClick={() => handleTypeFilter(f.value)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              typeFilter === f.value
-                ? 'bg-foreground text-background'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
           >
             {f.label}
-          </button>
+          </Button>
         ))}
       </div>
 
