@@ -2,7 +2,7 @@
 
 Searchable knowledge base of solved problems, patterns, and learnings.
 
-Last Updated: 2026-02-23
+Last Updated: 2026-02-24
 
 ## Database
 
@@ -36,3 +36,5 @@ Last Updated: 2026-02-23
 |----|-------|------|------|
 | [FE-001](frontend/FE-001-react-router-data-router-required.md) | React Router useBlocker Requires a Data Router | problem-solution | react-router, useBlocker, data-router |
 | [FE-002](frontend/FE-002-api-client-http-method-mismatch.md) | Frontend API Client HTTP Method Must Match Backend Controller Attribute | problem-solution | http, 405, method-not-allowed, api-client, dotnet |
+| [FE-003](frontend/FE-003-primary-action-hierarchy-in-toolbar.md) | Primary Action Hierarchy in a Flat Navigation Toolbar | pattern | navigation, hierarchy, button-variants, shadcn, visual-design |
+| [FE-004](frontend/FE-004-page-heading-typography-consistency.md) | Page Heading Typography Must Follow the Established Pattern | problem-solution | typography, consistency, design-system, font-serif, page-headings |
