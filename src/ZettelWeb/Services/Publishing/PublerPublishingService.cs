@@ -58,16 +58,28 @@ public class PublerPublishingService : IPublishingService
             ApplyHeaders(request);
 
             var response = await _http.SendAsync(request, ct);
+            var responseBody = await response.Content.ReadAsStringAsync(ct);
 
             if (!response.IsSuccessStatusCode)
             {
-                var body = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogError("API returned {StatusCode}: {Body}", (int)response.StatusCode, body);
-                response.EnsureSuccessStatusCode(); // rethrow so caller sees the exception
+                _logger.LogError("Publer API returned {StatusCode}: {Body}", (int)response.StatusCode, responseBody);
+                response.EnsureSuccessStatusCode();
             }
 
-            using var json = await JsonDocument.ParseAsync(
-                await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            // Guard against HTML error pages returned with a 2xx status (CDN/WAF redirect,
+            // invalid API key causing a login-page redirect, etc.).
+            var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+            if (!contentType.Contains("json", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogError(
+                    "Publer API returned unexpected Content-Type '{ContentType}': {Body}",
+                    contentType, responseBody);
+                throw new InvalidOperationException(
+                    $"Publer API returned non-JSON response (Content-Type: '{contentType}'). " +
+                    "Check that the API key is valid and the account ID is correct.");
+            }
+
+            using var json = JsonDocument.Parse(responseBody);
 
             // Publer returns { "post": { ... }, "job_id": "..." } or similar
             var jobId = json.RootElement.TryGetProperty("job_id", out var jobEl)
@@ -133,15 +145,21 @@ public class PublerPublishingService : IPublishingService
             ApplyHeaders(request);
 
             var response = await _http.SendAsync(request, ct);
+            var pollBody = await response.Content.ReadAsStringAsync(ct);
             if (!response.IsSuccessStatusCode)
             {
-                var errorBody = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogError("API returned {StatusCode}: {Body}", (int)response.StatusCode, errorBody);
+                _logger.LogError("Publer job status returned {StatusCode}: {Body}", (int)response.StatusCode, pollBody);
                 continue;
             }
 
-            using var json = await JsonDocument.ParseAsync(
-                await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            var pollContentType = response.Content.Headers.ContentType?.MediaType ?? "";
+            if (!pollContentType.Contains("json", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Publer job status returned non-JSON Content-Type '{ContentType}': {Body}", pollContentType, pollBody);
+                continue;
+            }
+
+            using var json = JsonDocument.Parse(pollBody);
 
             if (!json.RootElement.TryGetProperty("status", out var statusEl))
                 continue;
