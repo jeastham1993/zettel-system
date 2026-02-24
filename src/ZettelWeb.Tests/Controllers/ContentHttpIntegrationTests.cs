@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ZettelWeb.Data;
 using ZettelWeb.Models;
+using ZettelWeb.Services.Publishing;
 using ZettelWeb.Tests.Fakes;
 
 namespace ZettelWeb.Tests.Controllers;
@@ -348,6 +349,134 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
+    // ── PUT /api/content/pieces/{id}/description ──────────────────────────────
+
+    [Fact]
+    public async Task PUT_UpdateDescription_Returns404_WhenNotFound()
+    {
+        var response = await _client.PutAsJsonAsync(
+            "/api/content/pieces/doesnotexist/description",
+            new { description = "Test description" });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PUT_UpdateDescription_Returns204_AndPersists()
+    {
+        var genId = await SeedGenerationAsync();
+        var pieceId = await GetFirstPieceIdAsync(genId);
+
+        var response = await _client.PutAsJsonAsync(
+            $"/api/content/pieces/{pieceId}/description",
+            new { description = "My updated description" });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var getResponse = await _client.GetAsync($"/api/content/pieces/{pieceId}");
+        var piece = await getResponse.Content.ReadFromJsonAsync<ContentPieceResponse>();
+        Assert.Equal("My updated description", piece!.Description);
+    }
+
+    // ── PUT /api/content/pieces/{id}/tags ─────────────────────────────────────
+
+    [Fact]
+    public async Task PUT_UpdateTags_Returns404_WhenNotFound()
+    {
+        var response = await _client.PutAsJsonAsync(
+            "/api/content/pieces/doesnotexist/tags",
+            new { tags = new[] { "dotnet" } });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PUT_UpdateTags_Returns204_AndPersists()
+    {
+        var genId = await SeedGenerationAsync();
+        var pieceId = await GetFirstPieceIdAsync(genId);
+
+        var response = await _client.PutAsJsonAsync(
+            $"/api/content/pieces/{pieceId}/tags",
+            new { tags = new[] { "dotnet", "testing", "csharp" } });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var getResponse = await _client.GetAsync($"/api/content/pieces/{pieceId}");
+        var piece = await getResponse.Content.ReadFromJsonAsync<ContentPieceResponse>();
+        Assert.Equal(["dotnet", "testing", "csharp"], piece!.GeneratedTags);
+    }
+
+    // ── POST /api/content/pieces/{id}/send-to-draft ───────────────────────────
+
+    [Fact]
+    public async Task POST_SendToDraft_Returns404_WhenNotFound()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/content/pieces/doesnotexist/send-to-draft", new { });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_SendToDraft_Returns422_WhenPublishingNotConfigured()
+    {
+        // Publishing services have no credentials in the test environment
+        var genId = await SeedGenerationAsync();
+        var pieceId = await GetFirstPieceIdAsync(genId);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/content/pieces/{pieceId}/send-to-draft", new { });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_SendToDraft_Returns409_WhenAlreadySent()
+    {
+        using var scope = _app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ZettelDbContext>();
+
+        var genId = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}{Random.Shared.Next(1000, 4999)}";
+        var pieceId = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}{Random.Shared.Next(5000, 9999)}";
+
+        var generation = new ContentGeneration
+        {
+            Id = genId,
+            SeedNoteId = "seed-note-id",
+            ClusterNoteIds = ["seed-note-id"],
+            TopicSummary = "A test topic",
+            Status = GenerationStatus.Generated,
+            GeneratedAt = DateTime.UtcNow,
+        };
+        generation.Pieces.Add(new ContentPiece
+        {
+            Id = pieceId,
+            GenerationId = genId,
+            Medium = "blog",
+            Body = "Test blog body",
+            Status = ContentPieceStatus.Draft,
+            Sequence = 1,
+            CreatedAt = DateTime.UtcNow,
+            SentToDraftAt = DateTime.UtcNow,
+            DraftReference = "https://github.com/test/repo/blob/main/draft.md",
+        });
+        db.ContentGenerations.Add(generation);
+        await db.SaveChangesAsync();
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/content/pieces/{pieceId}/send-to-draft", new { });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    private async Task<string> GetFirstPieceIdAsync(string generationId)
+    {
+        var response = await _client.GetAsync($"/api/content/generations/{generationId}");
+        var generation = await response.Content.ReadFromJsonAsync<GenerationWithPiecesResponse>();
+        return generation!.Pieces[0].Id;
+    }
+
     // ── DTOs (private, test-only) ─────────────────────────────────────────────
 
     private record NoteResponse(string Id, string Title, string Content);
@@ -365,6 +494,17 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
     private record PagedGenerationsResponse(List<GenerationResponse> Items, int TotalCount);
 
     private record ScheduleResponse(bool Enabled, string DayOfWeek, string TimeOfDay);
+
+    private record ContentPieceResponse(
+        string Id, string GenerationId, string Medium, string? Title, string Body,
+        string Status, int Sequence, DateTime CreatedAt, DateTime? ApprovedAt,
+        string? Description, List<string> GeneratedTags, string? EditorFeedback,
+        DateTime? SentToDraftAt, string? DraftReference);
+
+    private record GenerationWithPiecesResponse(
+        string Id, string SeedNoteId, List<string> ClusterNoteIds, string TopicSummary,
+        string Status, DateTime GeneratedAt, DateTime? ReviewedAt,
+        List<ContentPieceResponse> Pieces);
 
     // ── Test Infrastructure ────────────────────────────────────────────────────
 
@@ -405,6 +545,180 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
 
                 services.RemoveAll<IChatClient>();
                 services.AddScoped<IChatClient>(_ => new FakeChatClient());
+            });
+        }
+    }
+}
+
+/// <summary>
+/// Integration tests for the send-to-draft endpoint using a configured FakePublishingService.
+/// These tests verify the happy path (approved piece succeeds) and the rejection path
+/// (non-approved piece returns 422) when the publishing service is available.
+/// </summary>
+public class SendToDraftWithFakePublishingTests
+    : IClassFixture<SendToDraftWithFakePublishingTests.TestAppWithFakePublishing>
+{
+    private readonly TestAppWithFakePublishing _app;
+    private readonly HttpClient _client;
+
+    public SendToDraftWithFakePublishingTests(TestAppWithFakePublishing app)
+    {
+        _app = app;
+        _client = app.CreateClient();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>Inserts a ContentGeneration with one blog piece via EF Core and returns the generation ID.</summary>
+    private async Task<string> SeedGenerationAsync(ContentPieceStatus pieceStatus = ContentPieceStatus.Draft)
+    {
+        using var scope = _app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ZettelDbContext>();
+
+        var genId = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}{Random.Shared.Next(1000, 4999)}";
+        var pieceId = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}{Random.Shared.Next(5000, 9999)}";
+
+        var generation = new ContentGeneration
+        {
+            Id = genId,
+            SeedNoteId = "seed-note-id",
+            ClusterNoteIds = ["seed-note-id"],
+            TopicSummary = "A test topic",
+            Status = GenerationStatus.Generated,
+            GeneratedAt = DateTime.UtcNow,
+        };
+        generation.Pieces.Add(new ContentPiece
+        {
+            Id = pieceId,
+            GenerationId = genId,
+            Medium = "blog",
+            Body = "Test blog body",
+            Status = pieceStatus,
+            Sequence = 1,
+            CreatedAt = DateTime.UtcNow,
+        });
+        db.ContentGenerations.Add(generation);
+        await db.SaveChangesAsync();
+        return genId;
+    }
+
+    private async Task<string> GetFirstPieceIdAsync(string generationId)
+    {
+        var response = await _client.GetAsync($"/api/content/generations/{generationId}");
+        var generation = await response.Content.ReadFromJsonAsync<GenerationWithPiecesResponse>();
+        return generation!.Pieces[0].Id;
+    }
+
+    // ── POST /api/content/pieces/{id}/send-to-draft ───────────────────────────
+
+    [Fact]
+    public async Task POST_SendToDraft_Returns200_AndStampsSentAt()
+    {
+        // Arrange: seed a piece, then approve it via the API
+        var genId = await SeedGenerationAsync();
+        var pieceId = await GetFirstPieceIdAsync(genId);
+
+        var approveResponse = await _client.PutAsJsonAsync(
+            $"/api/content/pieces/{pieceId}/approve", new { });
+        approveResponse.EnsureSuccessStatusCode();
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/content/pieces/{pieceId}/send-to-draft", new { });
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var piece = await response.Content.ReadFromJsonAsync<ContentPieceResponse>();
+        Assert.NotNull(piece);
+        Assert.NotNull(piece.SentToDraftAt);
+        Assert.NotEmpty(piece.DraftReference!);
+        Assert.Equal($"https://fake.draft.example.com/{pieceId}", piece.DraftReference);
+    }
+
+    [Fact]
+    public async Task POST_SendToDraft_Returns422_WhenPieceNotApproved()
+    {
+        // Arrange: seed a piece but do NOT approve it (status remains Draft)
+        var genId = await SeedGenerationAsync(ContentPieceStatus.Draft);
+        var pieceId = await GetFirstPieceIdAsync(genId);
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/content/pieces/{pieceId}/send-to-draft", new { });
+
+        // Assert: controller enforces Approved status before calling the publishing service
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+    }
+
+    // ── DTOs (private, test-only) ─────────────────────────────────────────────
+
+    private record ContentPieceResponse(
+        string Id, string GenerationId, string Medium, string? Title, string Body,
+        string Status, int Sequence, DateTime CreatedAt, DateTime? ApprovedAt,
+        string? Description, List<string> GeneratedTags, string? EditorFeedback,
+        DateTime? SentToDraftAt, string? DraftReference);
+
+    private record GenerationWithPiecesResponse(
+        string Id, string SeedNoteId, List<string> ClusterNoteIds, string TopicSummary,
+        string Status, DateTime GeneratedAt, DateTime? ReviewedAt,
+        List<ContentPieceResponse> Pieces);
+
+    // ── Test Infrastructure ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// WebApplicationFactory variant that replaces the real IPublishingService registrations
+    /// for "blog" and "social" with FakePublishingService so send-to-draft can succeed in tests.
+    /// </summary>
+    public class TestAppWithFakePublishing : WebApplicationFactory<Program>, IAsyncLifetime
+    {
+        private readonly Testcontainers.PostgreSql.PostgreSqlContainer _postgres;
+
+        public TestAppWithFakePublishing()
+        {
+            _postgres = new Testcontainers.PostgreSql.PostgreSqlBuilder("pgvector/pgvector:pg17")
+                .Build();
+        }
+
+        public async Task InitializeAsync() => await _postgres.StartAsync();
+
+        public new async Task DisposeAsync()
+        {
+            await base.DisposeAsync();
+            await _postgres.DisposeAsync();
+        }
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.UseEnvironment("Development");
+            builder.UseSetting("ConnectionStrings:DefaultConnection", _postgres.GetConnectionString());
+            builder.UseSetting("Embedding:Provider", "openai");
+            builder.UseSetting("Embedding:ApiKey", "sk-test");
+            builder.UseSetting("Embedding:Model", "fake-model");
+            builder.UseSetting("ContentGeneration:Provider", "openai");
+            builder.UseSetting("ContentGeneration:ApiKey", "sk-test");
+            builder.UseSetting("ContentGeneration:Model", "fake-model");
+
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IEmbeddingGenerator<string, Embedding<float>>>();
+                services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
+                    new FakeEmbeddingGenerator(new float[] { 0.1f, 0.2f, 0.3f }));
+
+                services.RemoveAll<IChatClient>();
+                services.AddScoped<IChatClient>(_ => new FakeChatClient());
+
+                // Remove the real keyed publishing services and replace with the fake.
+                // Keyed descriptors are matched by both ServiceType and ServiceKey.
+                var toRemove = services
+                    .Where(d => d.ServiceType == typeof(IPublishingService)
+                                && (d.ServiceKey is "blog" or "social"))
+                    .ToList();
+                foreach (var descriptor in toRemove)
+                    services.Remove(descriptor);
+
+                services.AddKeyedScoped<IPublishingService, FakePublishingService>("blog");
+                services.AddKeyedScoped<IPublishingService, FakePublishingService>("social");
             });
         }
     }
