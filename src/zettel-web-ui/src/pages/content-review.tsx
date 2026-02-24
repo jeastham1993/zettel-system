@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Sparkles,
@@ -12,6 +12,9 @@ import {
   Loader2,
   RotateCcw,
   Trash2,
+  Send,
+  AlertTriangle,
+  ExternalLink,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { relativeDate } from '@/lib/format'
 import * as contentApi from '@/api/content'
+import { ApiError } from '@/api/client'
 import type {
   ContentGeneration,
   ContentPiece,
@@ -48,9 +52,24 @@ function pieceSummary(pieces: ContentPiece[] | undefined) {
   return parts.join(', ')
 }
 
-function PieceCard({ piece }: { piece: ContentPiece }) {
+function normalizeTags(s: string): string[] {
+  return s.split(',').map((t) => t.trim()).filter(Boolean).sort()
+}
+
+const PieceCard = React.memo(function PieceCard({ piece }: { piece: ContentPiece }) {
   const queryClient = useQueryClient()
   const isBlog = piece.medium === 'blog'
+  const [editorOpen, setEditorOpen] = useState(true)
+  const [description, setDescription] = useState(piece.description ?? '')
+  const [tags, setTags] = useState(piece.generatedTags.join(', '))
+
+  useEffect(() => {
+    setDescription(piece.description ?? '')
+  }, [piece.description])
+
+  useEffect(() => {
+    setTags(piece.generatedTags.join(', '))
+  }, [piece.generatedTags])
 
   const approve = useMutation({
     mutationFn: () => contentApi.approvePiece(piece.id),
@@ -79,6 +98,54 @@ function PieceCard({ piece }: { piece: ContentPiece }) {
     onError: () => toast.error('Failed to regenerate content'),
   })
 
+  const updateDescription = useMutation({
+    mutationFn: (desc: string) => contentApi.updatePieceDescription(piece.id, desc),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['generations', piece.generationId] })
+      toast.success('Description saved')
+    },
+    onError: () => toast.error('Failed to save description'),
+  })
+
+  const updateTags = useMutation({
+    mutationFn: (tagList: string[]) => contentApi.updatePieceTags(piece.id, tagList),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['generations', piece.generationId] })
+      toast.success('Tags saved')
+    },
+    onError: () => toast.error('Failed to save tags'),
+  })
+
+  const sendToDraft = useMutation({
+    mutationFn: () => contentApi.sendToDraft(piece.id),
+    onSuccess: (updatedPiece) => {
+      queryClient.setQueryData(
+        ['generations', piece.generationId],
+        (old: any) => old ? {
+          ...old,
+          pieces: old.pieces?.map((p: any) => p.id === updatedPiece.id ? updatedPiece : p),
+        } : old,
+      )
+      queryClient.invalidateQueries({ queryKey: ['generations', piece.generationId] })
+      toast.success(
+        isBlog
+          ? 'Sent to GitHub as a draft'
+          : 'Sent to Publer as a draft',
+        updatedPiece.draftReference
+          ? { description: updatedPiece.draftReference }
+          : undefined,
+      )
+    },
+    onError: (err: Error) => {
+      const msg = (err as ApiError).status === 422
+        ? 'Publishing is not configured for this medium'
+        : (err as ApiError).status === 409
+          ? 'Already sent to draft'
+          : 'Failed to send to draft'
+      toast.error(msg)
+    },
+  })
+
   const handleExport = useCallback(async () => {
     try {
       const blob = await contentApi.exportPiece(piece.id)
@@ -94,6 +161,7 @@ function PieceCard({ piece }: { piece: ContentPiece }) {
   }, [piece.id, piece.title, piece.medium])
 
   const isDraft = piece.status === 'Draft'
+  const alreadySent = piece.sentToDraftAt !== null
 
   return (
     <div className="rounded-lg border border-border/50 p-4">
@@ -110,6 +178,12 @@ function PieceCard({ piece }: { piece: ContentPiece }) {
           <Badge variant={statusBadgeVariant(piece.status)} className="text-xs">
             {piece.status}
           </Badge>
+          {alreadySent && (
+            <Badge variant="outline" className="gap-1 text-xs text-green-600 dark:text-green-400">
+              <Check className="size-3" />
+              Sent to draft
+            </Badge>
+          )}
         </div>
         <time className="shrink-0 text-xs text-muted-foreground">
           {relativeDate(piece.createdAt)}
@@ -120,11 +194,77 @@ function PieceCard({ piece }: { piece: ContentPiece }) {
         <h4 className="mt-2 font-serif text-base font-semibold">{piece.title}</h4>
       )}
 
+      {/* Editor feedback callout — amber, collapsible */}
+      {piece.editorFeedback && (
+        <div className="mt-3 rounded-md border border-amber-300/60 bg-amber-50/50 dark:border-amber-700/40 dark:bg-amber-950/20">
+          <button
+            aria-expanded={editorOpen}
+            onClick={() => setEditorOpen((o) => !o)}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-amber-700 dark:text-amber-400"
+          >
+            <AlertTriangle className="size-3.5 shrink-0" />
+            Editor Feedback
+            {editorOpen ? (
+              <ChevronDown className="ml-auto size-3.5" />
+            ) : (
+              <ChevronRight className="ml-auto size-3.5" />
+            )}
+          </button>
+          {editorOpen && (
+            <div className="border-t border-amber-300/40 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:border-amber-700/30 dark:text-amber-300">
+              <pre className="whitespace-pre-wrap font-sans">{piece.editorFeedback}</pre>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
         {piece.body}
       </div>
 
-      <div className="mt-3 flex items-center gap-1.5">
+      {/* Description + tags — editable for blog pieces */}
+      {isBlog && (
+        <div className="mt-3 space-y-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Description
+            </label>
+            <textarea
+              className="w-full rounded-md border border-border/50 bg-transparent px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring"
+              rows={2}
+              placeholder="One-sentence SEO description…"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onBlur={() => {
+                if (description !== (piece.description ?? '')) {
+                  updateDescription.mutate(description)
+                }
+              }}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Tags (comma-separated)
+            </label>
+            <input
+              type="text"
+              className="w-full rounded-md border border-border/50 bg-transparent px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring"
+              placeholder="dotnet, serverless, aws"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              onBlur={() => {
+                const isDirty =
+                  normalizeTags(tags).join('|') !== normalizeTags(piece.generatedTags.join(', ')).join('|')
+                if (isDirty) {
+                  updateTags.mutate(normalizeTags(tags))
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {isDraft && (
           <>
             <Button
@@ -172,6 +312,32 @@ function PieceCard({ piece }: { piece: ContentPiece }) {
           <Download className="size-3" />
           Export
         </Button>
+        {!alreadySent ? (
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => sendToDraft.mutate()}
+            disabled={sendToDraft.isPending}
+            className="gap-1 text-muted-foreground"
+          >
+            {sendToDraft.isPending ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <Send className="size-3" />
+            )}
+            Send to Draft
+          </Button>
+        ) : piece.draftReference ? (
+          <a
+            href={piece.draftReference}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ExternalLink className="size-3" />
+            View Draft
+          </a>
+        ) : null}
       </div>
     </div>
   )
