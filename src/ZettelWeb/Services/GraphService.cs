@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ZettelWeb.Data;
@@ -8,7 +7,7 @@ namespace ZettelWeb.Services;
 
 public record SemanticEdge(string SourceId, string TargetId, double Similarity);
 
-public partial class GraphService : IGraphService
+public class GraphService : IGraphService
 {
     private readonly ZettelDbContext _db;
     private readonly ILogger<GraphService> _logger;
@@ -37,9 +36,8 @@ public partial class GraphService : IGraphService
         // Detect wiki-link edges
         foreach (var note in notes)
         {
-            foreach (Match match in WikiLinkRegex().Matches(note.Content))
+            foreach (var linkedTitle in WikiLinkParser.ExtractLinkedTitles(note.Content))
             {
-                var linkedTitle = match.Groups[1].Value;
                 if (titleToId.TryGetValue(linkedTitle, out var targetId) && targetId != note.Id)
                 {
                     edges.Add(new GraphEdge
@@ -110,6 +108,4 @@ public partial class GraphService : IGraphService
         return new GraphData { Nodes = graphNodes, Edges = edges };
     }
 
-    [GeneratedRegex(@"\[\[([^\]]+)\]\]")]
-    private static partial Regex WikiLinkRegex();
 }

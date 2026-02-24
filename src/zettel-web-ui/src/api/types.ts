@@ -174,6 +174,11 @@ export interface ContentPiece {
   sequence: number
   createdAt: string
   approvedAt: string | null
+  description: string | null
+  generatedTags: string[]
+  editorFeedback: string | null
+  sentToDraftAt: string | null
+  draftReference: string | null
 }
 
 export interface VoiceExample {
@@ -190,4 +195,43 @@ export interface VoiceConfig {
   medium: string
   styleNotes: string | null
   updatedAt: string
+}
+
+export interface KbHealthScorecard {
+  totalNotes: number
+  embeddedPercent: number
+  orphanCount: number
+  averageConnections: number
+}
+
+export interface UnconnectedNote {
+  id: string
+  title: string
+  createdAt: string
+  suggestionCount: number
+}
+
+export interface ClusterSummary {
+  hubNoteId: string
+  hubTitle: string
+  noteCount: number
+}
+
+export interface UnusedSeedNote {
+  id: string
+  title: string
+  connectionCount: number
+}
+
+export interface KbHealthOverview {
+  scorecard: KbHealthScorecard
+  newAndUnconnected: UnconnectedNote[]
+  richestClusters: ClusterSummary[]
+  neverUsedAsSeeds: UnusedSeedNote[]
+}
+
+export interface ConnectionSuggestion {
+  noteId: string
+  title: string
+  similarity: number
 }

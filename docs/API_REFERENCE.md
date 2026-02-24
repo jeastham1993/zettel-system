@@ -1,6 +1,6 @@
 # API Reference
 
-Last Updated: 2026-02-22
+Last Updated: 2026-02-24
 
 ---
 
@@ -367,3 +367,81 @@ Create or update style notes for a medium (upsert).
 ```
 
 **Response:** `200 OK` — updated config object | `400 Bad Request`
+
+---
+
+## KB Health
+
+### `GET /api/kb-health/overview`
+Full knowledge base health overview: scorecard metrics, recent orphans, richest clusters, and notes never used as generation seeds.
+
+**Response:** `200 OK`
+```json
+{
+  "scorecard": {
+    "totalNotes": 342,
+    "embeddedPercent": 87,
+    "orphanCount": 23,
+    "averageConnections": 4.2
+  },
+  "newAndUnconnected": [
+    {
+      "id": "string",
+      "title": "string",
+      "createdAt": "datetime",
+      "suggestionCount": 5
+    }
+  ],
+  "richestClusters": [
+    {
+      "hubNoteId": "string",
+      "hubTitle": "string",
+      "noteCount": 42
+    }
+  ],
+  "neverUsedAsSeeds": [
+    {
+      "id": "string",
+      "title": "string",
+      "connectionCount": 12
+    }
+  ]
+}
+```
+
+Notes:
+- `newAndUnconnected` — permanent notes added in the last 30 days with zero connections, newest first.
+- `richestClusters` — top 5 connected components by note count (minimum 2 notes). Hub is the most-connected note in the component.
+- `neverUsedAsSeeds` — permanent notes with `EmbedStatus=Completed` not in `UsedSeedNotes`, sorted by connection count descending.
+
+---
+
+### `GET /api/kb-health/orphan/{id}/suggestions`
+Top semantically similar notes for a given orphan note. Powered by pgvector cosine similarity at threshold 0.6.
+
+**Query params:** `limit` (default 5)
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "noteId": "string",
+    "title": "string",
+    "similarity": 0.87
+  }
+]
+```
+
+Returns empty array if the note has no embedding or no similar notes above the threshold.
+
+---
+
+### `POST /api/kb-health/orphan/{id}/link`
+Insert a `[[TargetTitle]]` wikilink at the end of an orphan note's content. Sets the orphan note's `EmbedStatus` to `Stale` for re-processing.
+
+**Body:**
+```json
+{ "targetNoteId": "string" }
+```
+
+**Response:** `200 OK` — updated orphan note | `404 Not Found` — if orphan or target note not found

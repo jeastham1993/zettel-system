@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Plus, Search, GitBranch, Inbox, Menu, Sparkles, Mic } from 'lucide-react'
+import { Plus, Search, GitBranch, Inbox, Menu, Sparkles, Mic, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -117,6 +117,17 @@ export function Header({ onOpenSearch }: HeaderProps) {
             <TooltipContent>Knowledge graph</TooltipContent>
           </Tooltip>
 
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/kb-health" className="text-muted-foreground">
+                  <Activity className="h-4 w-4" />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>KB health</TooltipContent>
+          </Tooltip>
+
           <ThemeToggle />
         </div>
 
@@ -180,6 +191,12 @@ export function Header({ onOpenSearch }: HeaderProps) {
                 <Link to="/graph" className="gap-2" onClick={() => setMenuOpen(false)}>
                   <GitBranch className="h-4 w-4" />
                   Knowledge graph
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/kb-health" className="gap-2" onClick={() => setMenuOpen(false)}>
+                  <Activity className="h-4 w-4" />
+                  KB health
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
