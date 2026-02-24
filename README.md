@@ -276,6 +276,64 @@ CONTENTGENERATION__SCHEDULE__TIMEOFDAY=09:00
 Generation can also be triggered manually at any time via
 `POST /api/content/generate`.
 
+### Publishing (optional)
+
+Once a piece has been approved in Content Review, it can be sent to a
+publishing destination as a draft. Each medium has its own service:
+
+- **Blog posts** → GitHub repository (creates an Astro-compatible
+  markdown file in your content directory as a draft)
+- **Social posts** → Publer (creates a scheduled draft post)
+
+Both services are optional and independently configured. If a service
+is not configured, the "Send to Draft" button on that medium returns
+`422 Unprocessable Entity`.
+
+#### Blog posts → GitHub
+
+```bash
+Publishing__GitHub__Token=ghp_...
+Publishing__GitHub__Owner=your-github-username
+Publishing__GitHub__Repo=your-blog-repo
+```
+
+| Variable                        | Default            | Description                                          |
+| ------------------------------- | ------------------ | ---------------------------------------------------- |
+| `Publishing__GitHub__Token`     | (required)         | GitHub personal access token with `contents:write`   |
+| `Publishing__GitHub__Owner`     | (required)         | GitHub username or organisation                      |
+| `Publishing__GitHub__Repo`      | (required)         | Repository name                                      |
+| `Publishing__GitHub__Branch`    | `main`             | Branch to commit the draft file to                   |
+| `Publishing__GitHub__ContentPath` | `src/content/blog` | Path within the repo where `.md` files are written |
+| `Publishing__GitHub__Author`    | `James Eastham`    | `author:` field in the generated YAML front matter   |
+
+The token needs `contents: write` scope on the target repository.
+A fine-grained token scoped to a single repo is recommended over a
+classic token.
+
+Files are written as `{ContentPath}/{date}-{slug}-{id[:8]}.md` with
+Astro-compatible YAML front matter (`draft: true`, `pubDatetime`,
+`title`, `description`, `tags`).
+
+#### Social posts → Publer
+
+```bash
+Publishing__Publer__ApiKey=publer_api_...
+Publishing__Publer__Accounts__0__Id=123456
+Publishing__Publer__Accounts__0__Platform=linkedin
+```
+
+| Variable                                 | Default     | Description                                              |
+| ---------------------------------------- | ----------- | -------------------------------------------------------- |
+| `Publishing__Publer__ApiKey`             | (required)  | Publer API key (Settings → API in your Publer workspace) |
+| `Publishing__Publer__Accounts__0__Id`    | (required)  | Publer account ID for the first social account           |
+| `Publishing__Publer__Accounts__0__Platform` | `linkedin` | Platform key: `linkedin`, `twitter`, `bluesky`, etc.   |
+
+Add more accounts by incrementing the index:
+`Publishing__Publer__Accounts__1__Id`, `Publishing__Publer__Accounts__1__Platform`, etc.
+
+`IsConfigured` requires `ApiKey` and at least one entry in `Accounts`.
+`WorkspaceId` is accepted but not required for the draft API call.
+
 ## Deployment Options
 
 ### Docker Compose (single server)
@@ -403,7 +461,10 @@ embedding API is down, notes queue up and process when it recovers.
 | `GET`   | `/api/content/pieces/{id}`             | Get a single piece                               |
 | `PUT`   | `/api/content/pieces/{id}/approve`     | Approve a piece                                  |
 | `PUT`   | `/api/content/pieces/{id}/reject`      | Reject a piece                                   |
+| `POST`  | `/api/content/pieces/{id}/send-to-draft` | Send approved piece to GitHub (blog) or Publer (social) |
 | `GET`   | `/api/content/pieces/{id}/export`      | Download piece as a `.md` file                   |
+| `PUT`   | `/api/content/pieces/{id}/description` | Update piece description                         |
+| `PUT`   | `/api/content/pieces/{id}/tags`        | Update piece tags                                |
 | `GET`   | `/api/content/schedule`                | Get schedule settings                            |
 | `PUT`   | `/api/content/schedule`                | Update schedule settings                         |
 
@@ -416,6 +477,14 @@ embedding API is down, notes queue up and process when it recovers.
 | `DELETE` | `/api/voice/examples/{id}`| Delete a writing example                      |
 | `GET`    | `/api/voice/config`       | Get style notes (filter by `medium`)          |
 | `PUT`    | `/api/voice/config`       | Set style notes for a medium (upsert)         |
+
+### Knowledge Base Health
+
+| Method | Endpoint                               | Description                                      |
+| ------ | -------------------------------------- | ------------------------------------------------ |
+| `GET`  | `/api/kb-health/overview`              | Scorecard, orphans, clusters, unused seeds       |
+| `GET`  | `/api/kb-health/orphan/{id}/suggestions` | Semantic connection suggestions for an orphan  |
+| `POST` | `/api/kb-health/orphan/{id}/link`      | Insert a `[[wikilink]]` into an orphan note      |
 
 ### Other
 
