@@ -106,8 +106,10 @@ public class PublerPublishingService : IPublishingService
 
             return "publer:draft:created";
         }
-        catch
+        catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetTag("error.type", ex.GetType().FullName);
             sw.Stop();
             ZettelTelemetry.PublishingDurationMs.Record(sw.Elapsed.TotalMilliseconds);
             ZettelTelemetry.DraftSendFailures.Add(1);

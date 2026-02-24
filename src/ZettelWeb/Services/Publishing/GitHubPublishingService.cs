@@ -92,8 +92,10 @@ public partial class GitHubPublishingService : IPublishingService
 
             return $"https://github.com/{_options.Owner}/{_options.Repo}/blob/{_options.Branch}/{filePath}";
         }
-        catch
+        catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetTag("error.type", ex.GetType().FullName);
             sw.Stop();
             ZettelTelemetry.PublishingDurationMs.Record(sw.Elapsed.TotalMilliseconds);
             ZettelTelemetry.DraftSendFailures.Add(1);

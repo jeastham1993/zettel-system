@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ZettelWeb.Data;
 using ZettelWeb.Models;
+using System.Diagnostics;
 
 namespace ZettelWeb.Services;
 
@@ -22,6 +23,8 @@ public class KbHealthService : IKbHealthService
 
     public async Task<KbHealthOverview> GetOverviewAsync()
     {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.get_overview");
+
         // Load all permanent notes (content needed for wiki-link parsing).
         var notes = await _db.Notes
             .AsNoTracking()
@@ -133,6 +136,13 @@ public class KbHealthService : IKbHealthService
             .Select(n => new UnusedSeedNote(n.Id, n.Title, edgeCounts.GetValueOrDefault(n.Id)))
             .ToList();
 
+        activity?.SetTag("kb_health.note_count", totalNotes);
+        activity?.SetTag("kb_health.orphan_count", orphans.Count);
+        activity?.SetTag("kb_health.embedded_percent", embeddedPercent);
+        _logger.LogInformation(
+            "KB health overview: {NoteCount} notes, {OrphanCount} orphans, {EmbeddedPercent}% embedded",
+            totalNotes, orphans.Count, embeddedPercent);
+
         return new KbHealthOverview(
             new KbHealthScorecard(totalNotes, embeddedPercent, orphans.Count, avgConnections),
             orphans,
@@ -143,6 +153,10 @@ public class KbHealthService : IKbHealthService
     public async Task<IReadOnlyList<ConnectionSuggestion>> GetConnectionSuggestionsAsync(
         string noteId, int limit = 5)
     {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.get_suggestions");
+        activity?.SetTag("kb_health.note_id", noteId);
+        activity?.SetTag("kb_health.limit", limit);
+
         var hasEmbedding = await _db.Notes
             .AsNoTracking()
             .AnyAsync(n => n.Id == noteId && n.Embedding != null);
@@ -183,6 +197,10 @@ public class KbHealthService : IKbHealthService
 
     public async Task<Note?> InsertWikilinkAsync(string orphanNoteId, string targetNoteId)
     {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.insert_wikilink");
+        activity?.SetTag("kb_health.orphan_note_id", orphanNoteId);
+        activity?.SetTag("kb_health.target_note_id", targetNoteId);
+
         var orphan = await _db.Notes.FindAsync(orphanNoteId);
         if (orphan is null) return null;
 
@@ -194,6 +212,12 @@ public class KbHealthService : IKbHealthService
         orphan.EmbedStatus = EmbedStatus.Stale;
 
         await _db.SaveChangesAsync();
+
+        ZettelTelemetry.WikilinksInserted.Add(1);
+        _logger.LogInformation(
+            "Wikilink inserted: {OrphanNoteId} -> {TargetNoteId} ({TargetTitle})",
+            orphanNoteId, targetNoteId, target.Title);
+
         return orphan;
     }
 
