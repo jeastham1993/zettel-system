@@ -14,6 +14,8 @@ public class PublerPublishingService : IPublishingService
     private readonly HttpClient _http;
     private readonly ILogger<PublerPublishingService> _logger;
 
+    private const string BaseUrl = "https://app.publer.com/api/v1";
+
     private static readonly JsonSerializerOptions JsonOpts =
         new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
 
@@ -38,17 +40,31 @@ public class PublerPublishingService : IPublishingService
         var sw = Stopwatch.StartNew();
         try
         {
-            // Build account_id list from configured accounts
-            var accountIds = _options.Accounts.Select(a => a.Id).ToList();
+            // Build the bulk request structure required by the Publer API.
+            // Each account maps to an entry in both "accounts" and "networks".
+            var networks = _options.Accounts.ToDictionary(
+                a => a.Platform,
+                a => new { type = "status", text = piece.Body });
+
+            var accounts = _options.Accounts.Select(a => new { id = a.Id }).ToList();
 
             var payload = new
             {
-                account_ids = accountIds,
-                text = piece.Body,
-                state = "draft",
+                bulk = new
+                {
+                    state = "draft",
+                    posts = new[]
+                    {
+                        new
+                        {
+                            networks,
+                            accounts,
+                        }
+                    }
+                }
             };
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://publer.com/api/v1/posts/schedule")
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/posts/schedule")
             {
                 Content = new StringContent(
                     JsonSerializer.Serialize(payload, JsonOpts),
@@ -81,8 +97,9 @@ public class PublerPublishingService : IPublishingService
 
             using var json = JsonDocument.Parse(responseBody);
 
-            // Publer returns { "post": { ... }, "job_id": "..." } or similar
-            var jobId = json.RootElement.TryGetProperty("job_id", out var jobEl)
+            // Response: { "success": true, "data": { "job_id": "..." } }
+            var jobId = json.RootElement.TryGetProperty("data", out var dataEl) &&
+                        dataEl.TryGetProperty("job_id", out var jobEl)
                 ? jobEl.GetString()
                 : null;
 
@@ -141,7 +158,7 @@ public class PublerPublishingService : IPublishingService
             await Task.Delay(TimeSpan.FromSeconds(1), ct);
 
             var request = new HttpRequestMessage(
-                HttpMethod.Get, $"https://publer.com/api/v1/job_status/{jobId}");
+                HttpMethod.Get, $"{BaseUrl}/job_status/{jobId}");
             ApplyHeaders(request);
 
             var response = await _http.SendAsync(request, ct);
@@ -161,19 +178,23 @@ public class PublerPublishingService : IPublishingService
 
             using var json = JsonDocument.Parse(pollBody);
 
-            if (!json.RootElement.TryGetProperty("status", out var statusEl))
+            // Response: { "success": true, "data": { "status": "working|complete|failed", ... } }
+            if (!json.RootElement.TryGetProperty("data", out var dataEl) ||
+                !dataEl.TryGetProperty("status", out var statusEl))
                 continue;
 
             var status = statusEl.GetString();
-            if (status is "success" or "done")
+            if (status is "complete")
             {
                 activity?.SetTag("publer.poll_attempts", attempts);
-                if (json.RootElement.TryGetProperty("post", out var postEl) &&
-                    postEl.TryGetProperty("share_url", out var urlEl))
+                if (dataEl.TryGetProperty("result", out var resultEl) &&
+                    resultEl.TryGetProperty("payload", out var payloadEl) &&
+                    payloadEl.TryGetProperty("share_url", out var urlEl))
                 {
                     return urlEl.GetString()!;
                 }
-                break;
+                // Job complete but no URL in payload — return a generic reference
+                return "publer:draft:created";
             }
 
             if (status is "failed" or "error")
@@ -194,6 +215,7 @@ public class PublerPublishingService : IPublishingService
         // TryAddWithoutValidation is required because AuthenticationHeaderValue
         // rejects scheme names containing a hyphen.
         request.Headers.TryAddWithoutValidation("Authorization", $"Bearer-API {_options.ApiKey}");
+        request.Headers.TryAddWithoutValidation("Publer-Workspace-Id", _options.WorkspaceId ?? "");
         request.Headers.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/json"));
     }
