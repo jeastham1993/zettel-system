@@ -46,4 +46,16 @@ public static class ZettelTelemetry
     public static readonly Counter<long> ScheduledGenerations =
         Meter.CreateCounter<long>("zettel.content.scheduled_generations",
             description: "Number of scheduled content generation runs");
+
+    public static readonly Counter<long> DraftsSent =
+        Meter.CreateCounter<long>("content.drafts_sent", description: "Number of pieces successfully sent to draft.");
+
+    public static readonly Counter<long> DraftSendFailures =
+        Meter.CreateCounter<long>("content.draft_send_failures", description: "Number of failed draft send attempts.");
+
+    public static readonly Counter<long> EditorFeedbackGenerated =
+        Meter.CreateCounter<long>("content.editor_feedback_generated", description: "Number of editor feedback passes completed.");
+
+    public static readonly Histogram<double> PublishingDurationMs =
+        Meter.CreateHistogram<double>("content.publishing_duration_ms", description: "Duration of external publish calls in milliseconds.");
 }
