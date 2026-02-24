@@ -341,7 +341,7 @@ const PieceCard = React.memo(function PieceCard({ piece }: { piece: ContentPiece
       </div>
     </div>
   )
-}
+})
 
 function GenerationCard({ generation }: { generation: ContentGeneration }) {
   const [expanded, setExpanded] = useState(false)
