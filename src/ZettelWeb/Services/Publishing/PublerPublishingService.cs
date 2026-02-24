@@ -119,8 +119,13 @@ public class PublerPublishingService : IPublishingService
 
     private async Task<string> PollForPostUrlAsync(string jobId, CancellationToken ct)
     {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("publishing.publer.poll_for_url");
+        activity?.SetTag("publer.job_id", jobId);
+
+        var attempts = 0;
         for (var i = 0; i < 10; i++)
         {
+            attempts++;
             await Task.Delay(TimeSpan.FromSeconds(1), ct);
 
             var request = new HttpRequestMessage(
@@ -144,6 +149,7 @@ public class PublerPublishingService : IPublishingService
             var status = statusEl.GetString();
             if (status is "success" or "done")
             {
+                activity?.SetTag("publer.poll_attempts", attempts);
                 if (json.RootElement.TryGetProperty("post", out var postEl) &&
                     postEl.TryGetProperty("share_url", out var urlEl))
                 {
@@ -159,6 +165,8 @@ public class PublerPublishingService : IPublishingService
             }
         }
 
+        activity?.SetTag("publer.poll_attempts", attempts);
+        activity?.SetStatus(ActivityStatusCode.Error, "Publer job did not complete within the polling window");
         throw new InvalidOperationException($"Publer job did not complete within the polling window.");
     }
 

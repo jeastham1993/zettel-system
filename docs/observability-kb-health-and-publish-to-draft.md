@@ -118,24 +118,24 @@ activity?.SetTag("error.type", ex.GetType().FullName);
 
 ---
 
-### 🟢 Suggestions (not yet addressed)
+### 🟢 Suggestions (all resolved)
 
-#### 5. `zettel.kb_health.wikilinks_inserted` — new metric added in this session
+#### 5. `zettel.kb_health.wikilinks_inserted` — counter added
 
 Counter added to `ZettelTelemetry`. Provides a simple rate signal for how frequently the
 KB health feature is being used to connect orphan notes.
 
-#### 6. `KbHealthService.GetOverviewAsync` — pgvector query has no duration metric
+#### 6. `KbHealthService.GetOverviewAsync` — overview duration histogram added ✅
 
-The `CROSS JOIN LATERAL` similarity query is the most expensive operation in the service.
-There's no timing signal for it. If KB health overview becomes slow, there's no metric to
-diff against. A `Stopwatch` + `ZettelTelemetry.Meter.CreateHistogram("zettel.kb_health.overview_duration", "ms")` would be the fix.
+`zettel.kb_health.overview_duration` (ms) added to `ZettelTelemetry` and wired into
+`GetOverviewAsync` with a `Stopwatch`. Fires on both the early-return (zero notes) path and
+the normal computation path. Also tagged onto the `kb_health.get_overview` span.
 
-#### 7. Publer `PollForPostUrlAsync` — no child span
+#### 7. Publer `PollForPostUrlAsync` — child span added ✅
 
-The polling loop (up to 10 iterations × 1s delay) is visible via the auto-generated
-`AddHttpClientInstrumentation()` spans on each `_http.SendAsync` call, but there's no
-wrapping span named `publishing.publer.poll_for_url` to see the aggregate duration and retry count.
+`publishing.publer.poll_for_url` span added with `publer.job_id` and `publer.poll_attempts`
+tags. Span status set to `Error` if polling exhausts all retries or the job reports failure.
+The 10-iteration polling window is now visible as a named, timed operation in traces.
 
 ---
 

@@ -61,4 +61,8 @@ public static class ZettelTelemetry
 
     public static readonly Counter<long> WikilinksInserted =
         Meter.CreateCounter<long>("zettel.kb_health.wikilinks_inserted", description: "Number of wikilinks inserted via the KB health dashboard.");
+
+    public static readonly Histogram<double> KbHealthOverviewDuration =
+        Meter.CreateHistogram<double>("zettel.kb_health.overview_duration", "ms",
+            "Time to compute the full KB health overview (note load, wiki-link parse, pgvector edges, union-find).");
 }

@@ -24,6 +24,7 @@ public class KbHealthService : IKbHealthService
     public async Task<KbHealthOverview> GetOverviewAsync()
     {
         using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.get_overview");
+        var sw = Stopwatch.StartNew();
 
         // Load all permanent notes (content needed for wiki-link parsing).
         var notes = await _db.Notes
@@ -34,6 +35,8 @@ public class KbHealthService : IKbHealthService
 
         if (notes.Count == 0)
         {
+            sw.Stop();
+            ZettelTelemetry.KbHealthOverviewDuration.Record(sw.Elapsed.TotalMilliseconds);
             return new KbHealthOverview(
                 new KbHealthScorecard(0, 0, 0, 0),
                 Array.Empty<UnconnectedNote>(),
@@ -136,6 +139,8 @@ public class KbHealthService : IKbHealthService
             .Select(n => new UnusedSeedNote(n.Id, n.Title, edgeCounts.GetValueOrDefault(n.Id)))
             .ToList();
 
+        sw.Stop();
+        ZettelTelemetry.KbHealthOverviewDuration.Record(sw.Elapsed.TotalMilliseconds);
         activity?.SetTag("kb_health.note_count", totalNotes);
         activity?.SetTag("kb_health.orphan_count", orphans.Count);
         activity?.SetTag("kb_health.embedded_percent", embeddedPercent);
