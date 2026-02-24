@@ -23,7 +23,19 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.zettelmobile"
+      "package": "com.anonymous.zettelmobile",
+      "intentFilters": [
+        {
+          "action": "android.intent.action.SEND",
+          "category": ["android.intent.category.DEFAULT"],
+          "data": [{"mimeType": "text/plain"}]
+        },
+        {
+          "action": "android.intent.action.SEND",
+          "category": ["android.intent.category.DEFAULT"],
+          "data": [{"mimeType": "text/*"}]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

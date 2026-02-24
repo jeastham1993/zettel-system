@@ -9,7 +9,7 @@ import {
   Platform,
   Alert,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as Haptics from 'expo-haptics'
 import { X, Plus } from 'lucide-react-native'
 import { colors, themed } from '@/src/theme/colors'
@@ -25,7 +25,10 @@ export default function CaptureScreen() {
   const { enqueue } = useOfflineQueue()
   const captureNote = useCaptureNote()
 
-  const [content, setContent] = useState('')
+  const { text: sharedText } = useLocalSearchParams<{ text?: string }>()
+  const initialContent = Array.isArray(sharedText) ? sharedText[0] : (sharedText ?? '')
+
+  const [content, setContent] = useState(initialContent)
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [showTagInput, setShowTagInput] = useState(false)

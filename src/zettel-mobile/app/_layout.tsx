@@ -3,6 +3,7 @@ import { useColorScheme } from 'react-native'
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native'
 import { useFonts } from 'expo-font'
 import { Stack, useRouter, useSegments } from 'expo-router'
+import * as Linking from 'expo-linking'
 import * as SplashScreen from 'expo-splash-screen'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -88,6 +89,43 @@ export default function RootLayout() {
   return <RootLayoutNav />
 }
 
+// Handles URLs shared to the app via the Android share sheet (e.g. URLs from Chrome).
+// Note: Android SEND intent text extras are not accessible via the JS Linking API without
+// a native module. This handler covers URL-based shares; for plain text shares the app
+// opens but the text field is left for the user to fill in manually.
+function ShareIntentHandler({ children }: { children: React.ReactNode }) {
+  const router = useRouter()
+  const url = Linking.useURL()
+  const lastHandledUrl = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!url || url === lastHandledUrl.current) return
+    lastHandledUrl.current = url
+
+    try {
+      const parsed = Linking.parse(url)
+
+      // Query param ?text=... (e.g. from a deep link routed to our scheme)
+      const textParam = parsed.queryParams?.text
+      const text = Array.isArray(textParam) ? textParam[0] : textParam
+
+      if (text) {
+        router.push(`/capture?text=${encodeURIComponent(text)}`)
+        return
+      }
+
+      // A bare https:// URL shared from a browser — treat the URL itself as the capture text
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        router.push(`/capture?text=${encodeURIComponent(url)}`)
+      }
+    } catch {
+      // Unparseable — ignore
+    }
+  }, [url, router])
+
+  return <>{children}</>
+}
+
 function ForegroundSyncProvider({ children }: { children: React.ReactNode }) {
   const handleSyncResult = useCallback(
     (result: { synced: number; failed: number }) => {
@@ -139,6 +177,7 @@ function RootLayoutNav() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={navTheme}>
           <ForegroundSyncProvider>
+            <ShareIntentHandler>
             <NavigationGuard>
               <Stack>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -160,6 +199,7 @@ function RootLayoutNav() {
                 />
               </Stack>
             </NavigationGuard>
+            </ShareIntentHandler>
           </ForegroundSyncProvider>
         </ThemeProvider>
       </QueryClientProvider>

@@ -111,6 +111,9 @@ public class ZettelDbContext : DbContext
             entity.Property(e => e.Medium).HasMaxLength(20).IsRequired();
             entity.Property(e => e.Body).IsRequired();
 
+            entity.Property(e => e.GeneratedTags)
+                .HasColumnType("jsonb");
+
             entity.Property(e => e.Status)
                 .HasConversion<string>()
                 .HasMaxLength(20)

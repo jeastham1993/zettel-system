@@ -53,6 +53,18 @@ export function exportPiece(id: string): Promise<Blob> {
   return getBlob(`/api/content/pieces/${encodeURIComponent(id)}/export`)
 }
 
+export function updatePieceDescription(id: string, description: string): Promise<void> {
+  return put<void>(`/api/content/pieces/${encodeURIComponent(id)}/description`, { description })
+}
+
+export function updatePieceTags(id: string, tags: string[]): Promise<void> {
+  return put<void>(`/api/content/pieces/${encodeURIComponent(id)}/tags`, { tags })
+}
+
+export function sendToDraft(id: string): Promise<ContentPiece> {
+  return post<ContentPiece>(`/api/content/pieces/${encodeURIComponent(id)}/send-to-draft`)
+}
+
 // Voice
 
 export function listVoiceExamples(): Promise<VoiceExample[]> {
