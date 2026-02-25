@@ -30,6 +30,7 @@ Last Updated: 2026-02-24 (session 2)
 |----|-------|------|------|
 | [INFRA-001](infrastructure/INFRA-001-ollama-embedding-context-limit.md) | Ollama Embedding Model Context Length Exceeded | problem-solution | ollama, embedding, nomic-embed-text, truncation |
 | [INFRA-002](infrastructure/INFRA-002-startup-configuration-logging.md) | Startup Configuration Logging for Deployment Debugging | pattern | configuration, startup, logging, aspnetcore, deployment |
+| [INFRA-003](infrastructure/INFRA-003-ollama-httpclient-timeout-not-configurable.md) | OllamaSharp HttpClient Timeout Hardcoded at 100s | problem-solution | ollama, httpclient, timeout, ubuntu, cpu-inference |
 
 ## Mobile
 
