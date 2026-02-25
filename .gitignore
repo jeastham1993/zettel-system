@@ -437,3 +437,10 @@ __pycache__/
 *.btm.cs
 *.odx.cs
 *.xsd.cs
+
+# claude-reliability managed
+.claude/bin/
+.claude/*.local.md
+.claude/*.local.json
+.claude/*.local
+.claude-reliability/
