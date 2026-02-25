@@ -257,3 +257,23 @@ export interface SummarizeNoteResponse {
   summarizedLength: number
   stillLarge: boolean
 }
+
+export interface SuggestedNote {
+  title: string
+  content: string
+}
+
+export interface SplitSuggestion {
+  noteId: string
+  originalTitle: string
+  notes: SuggestedNote[]
+}
+
+export interface ApplySplitRequest {
+  notes: SuggestedNote[]
+}
+
+export interface ApplySplitResponse {
+  originalNoteId: string
+  createdNoteIds: string[]
+}

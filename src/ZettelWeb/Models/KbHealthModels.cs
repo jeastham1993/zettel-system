@@ -63,3 +63,20 @@ public record SummarizeNoteResponse(
     int OriginalLength,
     int SummarizedLength,
     bool StillLarge);
+
+/// <summary>A single atomic note suggested by the LLM when splitting a large note.</summary>
+public record SuggestedNote(string Title, string Content);
+
+/// <summary>LLM-generated split suggestions for a large note. No changes are made until ApplySplit is called.</summary>
+public record SplitSuggestion(
+    string NoteId,
+    string OriginalTitle,
+    IReadOnlyList<SuggestedNote> Notes);
+
+/// <summary>Request body to confirm and apply a note split.</summary>
+public record ApplySplitRequest(IReadOnlyList<SuggestedNote> Notes);
+
+/// <summary>Response after applying a note split. The original note is preserved untouched.</summary>
+public record ApplySplitResponse(
+    string OriginalNoteId,
+    IReadOnlyList<string> CreatedNoteIds);

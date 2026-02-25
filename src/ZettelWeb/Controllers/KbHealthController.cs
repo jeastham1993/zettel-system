@@ -113,4 +113,36 @@ public class KbHealthController : ControllerBase
         if (response is null) return NotFound();
         return Ok(response);
     }
+
+    /// <summary>
+    /// Ask the LLM to suggest how a large note could be split into 2–5 atomic notes.
+    /// Read-only — no changes are made until <c>ApplySplit</c> is called.
+    /// </summary>
+    /// <param name="id">The note ID to generate split suggestions for.</param>
+    [HttpPost("large-notes/{id}/split-suggestions")]
+    [ProducesResponseType<SplitSuggestion>(200)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> GetSplitSuggestions(string id, CancellationToken cancellationToken)
+    {
+        var suggestion = await _kbHealth.GetSplitSuggestionsAsync(id, cancellationToken);
+        if (suggestion is null) return NotFound();
+        return Ok(suggestion);
+    }
+
+    /// <summary>
+    /// Create new notes from a confirmed split. The original note is preserved untouched.
+    /// Each new note is created as a permanent note with <c>EmbedStatus.Pending</c>.
+    /// </summary>
+    /// <param name="id">The original note ID (preserved after the split).</param>
+    /// <param name="request">The confirmed sub-notes to create.</param>
+    [HttpPost("large-notes/{id}/apply-split")]
+    [ProducesResponseType<ApplySplitResponse>(200)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> ApplySplit(
+        string id, [FromBody] ApplySplitRequest request, CancellationToken cancellationToken)
+    {
+        var response = await _kbHealth.ApplySplitAsync(id, request.Notes, cancellationToken);
+        if (response is null) return NotFound();
+        return Ok(response);
+    }
 }

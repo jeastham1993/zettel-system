@@ -151,6 +151,64 @@ public class KbHealthControllerTests
         Assert.IsType<NotFoundResult>(result);
     }
 
+    // ── POST /api/kb-health/large-notes/{id}/split-suggestions ──────────
+
+    [Fact]
+    public async Task GetSplitSuggestions_Returns200WithSuggestion()
+    {
+        var controller = CreateController(new FakeKbHealthService
+        {
+            SplitSuggestionResult = new SplitSuggestion("n1", "Big Note", new[]
+            {
+                new SuggestedNote("Part A", "Content A"),
+                new SuggestedNote("Part B", "Content B"),
+            })
+        });
+
+        var result = await controller.GetSplitSuggestions("n1", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.IsType<SplitSuggestion>(ok.Value);
+    }
+
+    [Fact]
+    public async Task GetSplitSuggestions_Returns404WhenNoteNotFound()
+    {
+        var controller = CreateController(new FakeKbHealthService { SplitSuggestionResult = null });
+
+        var result = await controller.GetSplitSuggestions("missing", CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    // ── POST /api/kb-health/large-notes/{id}/apply-split ─────────────────
+
+    [Fact]
+    public async Task ApplySplit_Returns200WithCreatedIds()
+    {
+        var controller = CreateController(new FakeKbHealthService
+        {
+            ApplySplitResult = new ApplySplitResponse("n1", new[] { "new1", "new2" })
+        });
+
+        var request = new ApplySplitRequest(new[] { new SuggestedNote("A", "C") });
+        var result = await controller.ApplySplit("n1", request, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.IsType<ApplySplitResponse>(ok.Value);
+    }
+
+    [Fact]
+    public async Task ApplySplit_Returns404WhenNoteNotFound()
+    {
+        var controller = CreateController(new FakeKbHealthService { ApplySplitResult = null });
+
+        var request = new ApplySplitRequest(new[] { new SuggestedNote("A", "C") });
+        var result = await controller.ApplySplit("missing", request, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
     // ── Fake ────────────────────────────────────────────────────────────
 
     private class FakeKbHealthService : IKbHealthService
@@ -160,6 +218,8 @@ public class KbHealthControllerTests
         public int RequeueResult { get; init; }
         public IReadOnlyList<LargeNote> LargeNotesResult { get; init; } = Array.Empty<LargeNote>();
         public SummarizeNoteResponse? SummarizeResult { get; init; }
+        public SplitSuggestion? SplitSuggestionResult { get; init; }
+        public ApplySplitResponse? ApplySplitResult { get; init; }
 
         public Task<KbHealthOverview> GetOverviewAsync() =>
             Task.FromResult(new KbHealthOverview(
@@ -187,5 +247,13 @@ public class KbHealthControllerTests
         public Task<SummarizeNoteResponse?> SummarizeNoteAsync(
             string noteId, CancellationToken cancellationToken = default) =>
             Task.FromResult(SummarizeResult);
+
+        public Task<SplitSuggestion?> GetSplitSuggestionsAsync(
+            string noteId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(SplitSuggestionResult);
+
+        public Task<ApplySplitResponse?> ApplySplitAsync(
+            string noteId, IReadOnlyList<SuggestedNote> notes, CancellationToken cancellationToken = default) =>
+            Task.FromResult(ApplySplitResult);
     }
 }

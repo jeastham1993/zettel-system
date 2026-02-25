@@ -1,10 +1,12 @@
+using System.Diagnostics;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using ZettelWeb.Data;
 using ZettelWeb.Models;
-using System.Diagnostics;
 
 namespace ZettelWeb.Services;
 
@@ -353,6 +355,123 @@ public class KbHealthService : IKbHealthService
         activity?.SetTag("kb_health.still_large", stillLarge);
 
         return new SummarizeNoteResponse(noteId, originalLength, summarizedLength, stillLarge);
+    }
+
+    public async Task<SplitSuggestion?> GetSplitSuggestionsAsync(
+        string noteId, CancellationToken cancellationToken = default)
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.get_split_suggestions");
+        activity?.SetTag("kb_health.note_id", noteId);
+
+        var note = await _db.Notes.FindAsync(new object[] { noteId }, cancellationToken);
+        if (note is null) return null;
+
+        var prompt = $$"""
+            You are a Zettelkasten assistant. The following note is too large and contains multiple ideas.
+            Break it down into 2-5 atomic notes, each focusing on one distinct concept or idea.
+            Return ONLY valid JSON with no preamble, explanation, or markdown fencing.
+
+            Required JSON format:
+            {"notes":[{"title":"...", "content":"..."}]}
+
+            --- NOTE: {{note.Title}} ---
+            {{note.Content}}
+            """;
+
+        var response = await _chatClient.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, prompt)],
+            new ChatOptions { MaxOutputTokens = 2000, Temperature = 0.3f },
+            cancellationToken);
+
+        var raw = response.Text?.Trim() ?? "{}";
+        var json = StripMarkdownCodeFences(raw);
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<SplitSuggestionJson>(json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            var notes = (parsed?.Notes ?? [])
+                .Where(n => !string.IsNullOrWhiteSpace(n.Title) && !string.IsNullOrWhiteSpace(n.Content))
+                .Select(n => new SuggestedNote(n.Title!.Trim(), n.Content!.Trim()))
+                .ToList();
+
+            _logger.LogInformation(
+                "Split suggestions for note {NoteId}: {Count} atomic notes suggested",
+                noteId, notes.Count);
+
+            activity?.SetTag("kb_health.suggestion_count", notes.Count);
+            return new SplitSuggestion(noteId, note.Title, notes);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse split suggestion JSON for note {NoteId}", noteId);
+            return new SplitSuggestion(noteId, note.Title, []);
+        }
+    }
+
+    public async Task<ApplySplitResponse?> ApplySplitAsync(
+        string noteId, IReadOnlyList<SuggestedNote> notes, CancellationToken cancellationToken = default)
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.apply_split");
+        activity?.SetTag("kb_health.note_id", noteId);
+        activity?.SetTag("kb_health.note_count", notes.Count);
+
+        var original = await _db.Notes.FindAsync(new object[] { noteId }, cancellationToken);
+        if (original is null) return null;
+
+        var createdIds = new List<string>(notes.Count);
+
+        foreach (var suggested in notes)
+        {
+            var newId = GenerateId();
+            _db.Notes.Add(new Note
+            {
+                Id = newId,
+                Title = suggested.Title,
+                Content = suggested.Content,
+                Status = NoteStatus.Permanent,
+                EmbedStatus = EmbedStatus.Pending,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            });
+            createdIds.Add(newId);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Applied split for note {OriginalNoteId}: created {Count} new notes",
+            noteId, createdIds.Count);
+
+        ZettelTelemetry.NoteSplitsApplied.Add(1);
+        return new ApplySplitResponse(noteId, createdIds);
+    }
+
+    private static string StripMarkdownCodeFences(string text)
+    {
+        // Strip ```json ... ``` or ``` ... ``` wrappers that LLMs commonly add
+        var match = Regex.Match(text, @"```(?:json)?\s*([\s\S]*?)\s*```");
+        return match.Success ? match.Groups[1].Value.Trim() : text;
+    }
+
+    private static string GenerateId()
+    {
+        var now = DateTime.UtcNow;
+        return $"{now:yyyyMMddHHmmssfff}{Random.Shared.Next(1000, 9999)}";
+    }
+
+    // ── Internal JSON shape for LLM response parsing ─────────────────────────
+
+    private sealed class SplitSuggestionJson
+    {
+        public List<SuggestedNoteJson>? Notes { get; set; }
+    }
+
+    private sealed class SuggestedNoteJson
+    {
+        public string? Title { get; set; }
+        public string? Content { get; set; }
     }
 
     /// <summary>

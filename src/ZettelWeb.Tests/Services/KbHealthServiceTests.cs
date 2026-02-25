@@ -566,4 +566,136 @@ public class KbHealthServiceTests
         Assert.NotNull(result);
         Assert.False(result!.StillLarge);
     }
+
+    // ── GetSplitSuggestionsAsync ────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetSplitSuggestions_ReturnsNullWhenNoteNotFound()
+    {
+        var db = CreateDb();
+
+        var result = await CreateService(db).GetSplitSuggestionsAsync("missing");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetSplitSuggestions_ParsesLlmJsonResponse()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note { Id = "n1", Title = "Big Note", Content = new string('x', 5000) });
+        await db.SaveChangesAsync();
+
+        var json = """{"notes":[{"title":"Part A","content":"Content A"},{"title":"Part B","content":"Content B"}]}""";
+        var fake = new FakeChatClient { Response = json };
+        var result = await CreateService(db, fake).GetSplitSuggestionsAsync("n1");
+
+        Assert.NotNull(result);
+        Assert.Equal("n1", result!.NoteId);
+        Assert.Equal("Big Note", result.OriginalTitle);
+        Assert.Equal(2, result.Notes.Count);
+        Assert.Equal("Part A", result.Notes[0].Title);
+        Assert.Equal("Content A", result.Notes[0].Content);
+    }
+
+    [Fact]
+    public async Task GetSplitSuggestions_StripsMarkdownCodeFencesFromResponse()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note { Id = "n1", Title = "Big", Content = new string('x', 5000) });
+        await db.SaveChangesAsync();
+
+        var json = "```json\n{\"notes\":[{\"title\":\"A\",\"content\":\"C\"}]}\n```";
+        var fake = new FakeChatClient { Response = json };
+        var result = await CreateService(db, fake).GetSplitSuggestionsAsync("n1");
+
+        Assert.NotNull(result);
+        Assert.Single(result!.Notes);
+    }
+
+    [Fact]
+    public async Task GetSplitSuggestions_DoesNotModifyOriginalNote()
+    {
+        var db = CreateDb();
+        var originalContent = new string('x', 5000);
+        db.Notes.Add(new Note { Id = "n1", Title = "Big Note", Content = originalContent });
+        await db.SaveChangesAsync();
+
+        var json = """{"notes":[{"title":"A","content":"C"}]}""";
+        var fake = new FakeChatClient { Response = json };
+        await CreateService(db, fake).GetSplitSuggestionsAsync("n1");
+
+        var note = await db.Notes.FindAsync("n1");
+        Assert.Equal(originalContent, note!.Content);
+    }
+
+    // ── ApplySplitAsync ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ApplySplit_ReturnsNullWhenNoteNotFound()
+    {
+        var db = CreateDb();
+        var notes = new List<SuggestedNote> { new("A", "Content") };
+
+        var result = await CreateService(db).ApplySplitAsync("missing", notes);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ApplySplit_CreatesNewNotesInDatabase()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note { Id = "n1", Title = "Original", Content = new string('x', 5000) });
+        await db.SaveChangesAsync();
+
+        var suggestions = new List<SuggestedNote>
+        {
+            new("Sub-Note A", "Content A"),
+            new("Sub-Note B", "Content B"),
+        };
+
+        var result = await CreateService(db).ApplySplitAsync("n1", suggestions);
+
+        Assert.NotNull(result);
+        Assert.Equal("n1", result!.OriginalNoteId);
+        Assert.Equal(2, result.CreatedNoteIds.Count);
+
+        var allNotes = await db.Notes.ToListAsync();
+        Assert.Equal(3, allNotes.Count); // original + 2 new
+        Assert.Contains(allNotes, n => n.Title == "Sub-Note A" && n.Content == "Content A");
+        Assert.Contains(allNotes, n => n.Title == "Sub-Note B" && n.Content == "Content B");
+    }
+
+    [Fact]
+    public async Task ApplySplit_NewNotesArePermanentWithPendingEmbedStatus()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note { Id = "n1", Title = "O", Content = new string('x', 5000) });
+        await db.SaveChangesAsync();
+
+        var suggestions = new List<SuggestedNote> { new("Child", "C") };
+        await CreateService(db).ApplySplitAsync("n1", suggestions);
+
+        var newNote = await db.Notes.FirstOrDefaultAsync(n => n.Title == "Child");
+        Assert.NotNull(newNote);
+        Assert.Equal(NoteStatus.Permanent, newNote!.Status);
+        Assert.Equal(EmbedStatus.Pending, newNote.EmbedStatus);
+    }
+
+    [Fact]
+    public async Task ApplySplit_PreservesOriginalNoteUnchanged()
+    {
+        var db = CreateDb();
+        var originalContent = new string('x', 5000);
+        db.Notes.Add(new Note { Id = "n1", Title = "Original", Content = originalContent, EmbedStatus = EmbedStatus.Completed });
+        await db.SaveChangesAsync();
+
+        var suggestions = new List<SuggestedNote> { new("Child", "C") };
+        await CreateService(db).ApplySplitAsync("n1", suggestions);
+
+        var original = await db.Notes.FindAsync("n1");
+        Assert.Equal(originalContent, original!.Content);
+        Assert.Equal(EmbedStatus.Completed, original.EmbedStatus);
+    }
 }
