@@ -243,3 +243,37 @@ export interface UnembeddedNote {
   embedStatus: EmbedStatus
   embedError: string | null
 }
+
+export interface LargeNote {
+  id: string
+  title: string
+  updatedAt: string
+  characterCount: number
+}
+
+export interface SummarizeNoteResponse {
+  noteId: string
+  originalLength: number
+  summarizedLength: number
+  stillLarge: boolean
+}
+
+export interface SuggestedNote {
+  title: string
+  content: string
+}
+
+export interface SplitSuggestion {
+  noteId: string
+  originalTitle: string
+  notes: SuggestedNote[]
+}
+
+export interface ApplySplitRequest {
+  notes: SuggestedNote[]
+}
+
+export interface ApplySplitResponse {
+  originalNoteId: string
+  createdNoteIds: string[]
+}

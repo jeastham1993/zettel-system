@@ -24,6 +24,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.zettelmobile",
+      "usesCleartextTraffic": true,
       "intentFilters": [
         {
           "action": "android.intent.action.SEND",

@@ -125,8 +125,14 @@ var embeddingModel = builder.Configuration["Embedding:Model"] ?? "text-embedding
 if (string.Equals(embeddingProvider, "ollama", StringComparison.OrdinalIgnoreCase))
 {
     var ollamaUri = builder.Configuration["Embedding:OllamaUrl"] ?? "http://localhost:11434";
+    var ollamaTimeoutSeconds = builder.Configuration.GetValue("Embedding:HttpTimeoutSeconds", 300);
+    var ollamaHttpClient = new HttpClient
+    {
+        BaseAddress = new Uri(ollamaUri),
+        Timeout = TimeSpan.FromSeconds(ollamaTimeoutSeconds)
+    };
     builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
-        new OllamaApiClient(new Uri(ollamaUri), embeddingModel));
+        new OllamaApiClient(ollamaHttpClient, embeddingModel));
 }
 else if (string.Equals(embeddingProvider, "bedrock", StringComparison.OrdinalIgnoreCase))
 {

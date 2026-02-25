@@ -1,8 +1,12 @@
+using System.Diagnostics;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using ZettelWeb.Data;
 using ZettelWeb.Models;
-using System.Diagnostics;
 
 namespace ZettelWeb.Services;
 
@@ -10,15 +14,28 @@ public class KbHealthService : IKbHealthService
 {
     private const int OrphanWindowDays = 30;
     private const int TopClusterCount = 5;
-    private const double SuggestionThreshold = 0.6;
 
     private readonly ZettelDbContext _db;
+    private readonly IChatClient _chatClient;
     private readonly ILogger<KbHealthService> _logger;
+    private readonly int _largeNoteThreshold;
+    private readonly int _summarizeTargetLength;
+    private readonly double _suggestionThreshold;
 
-    public KbHealthService(ZettelDbContext db, ILogger<KbHealthService> logger)
+    public KbHealthService(
+        ZettelDbContext db,
+        IChatClient chatClient,
+        IConfiguration configuration,
+        ILogger<KbHealthService> logger)
     {
         _db = db;
+        _chatClient = chatClient;
         _logger = logger;
+        _largeNoteThreshold = configuration.GetValue("Embedding:MaxInputCharacters", 4_000);
+        _summarizeTargetLength = (int)(_largeNoteThreshold * 0.8);
+        // Default 0.3: works across embedding models with compressed score distributions
+        // (e.g. Titan Embeddings). Raise toward 0.6 if nomic-embed-text is in use.
+        _suggestionThreshold = configuration.GetValue("Search:_suggestionThreshold", 0.3);
     }
 
     public async Task<KbHealthOverview> GetOverviewAsync()
@@ -85,7 +102,7 @@ public class KbHealthService : IKbHealthService
                     ) n2
                     WHERE n1."Embedding" IS NOT NULL
                       AND n1."Status" = 'Permanent'
-                      AND (1 - (n1."Embedding"::vector <=> n2."Embedding"::vector)) > {SuggestionThreshold}
+                      AND (1 - (n1."Embedding"::vector <=> n2."Embedding"::vector)) > {_suggestionThreshold}
                     """)
                 .ToListAsync();
 
@@ -188,7 +205,7 @@ public class KbHealthService : IKbHealthService
                     ) n2
                     WHERE n1."Id" = {noteId}
                       AND n1."Embedding" IS NOT NULL
-                      AND (1 - (n1."Embedding"::vector <=> n2."Embedding"::vector)) > {SuggestionThreshold}
+                      AND (1 - (n1."Embedding"::vector <=> n2."Embedding"::vector)) > {_suggestionThreshold}
                     ORDER BY "Similarity" DESC
                     """)
                 .ToListAsync();
@@ -211,6 +228,14 @@ public class KbHealthService : IKbHealthService
 
         var target = await _db.Notes.FindAsync(targetNoteId);
         if (target is null) return null;
+
+        _db.NoteVersions.Add(new NoteVersion
+        {
+            NoteId = orphan.Id,
+            Title = orphan.Title,
+            Content = orphan.Content,
+            SavedAt = DateTime.UtcNow
+        });
 
         orphan.Content += $"<p>[[{target.Title}]]</p>";
         orphan.UpdatedAt = DateTime.UtcNow;
@@ -255,6 +280,201 @@ public class KbHealthService : IKbHealthService
 
         _logger.LogInformation("Embedding requeued for note {NoteId}", noteId);
         return 1;
+    }
+
+    public async Task<IReadOnlyList<LargeNote>> GetLargeNotesAsync()
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.get_large_notes");
+
+        var notes = await _db.Notes
+            .AsNoTracking()
+            .Where(n => n.Status == NoteStatus.Permanent && n.Content.Length > _largeNoteThreshold)
+            .OrderByDescending(n => n.Content.Length)
+            .Select(n => new LargeNote(n.Id, n.Title, n.UpdatedAt, n.Content.Length))
+            .ToListAsync();
+
+        activity?.SetTag("kb_health.large_note_count", notes.Count);
+        _logger.LogInformation("Found {Count} large notes above {Threshold} chars", notes.Count, _largeNoteThreshold);
+
+        return notes;
+    }
+
+    public async Task<SummarizeNoteResponse?> SummarizeNoteAsync(
+        string noteId, CancellationToken cancellationToken = default)
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.summarize_note");
+        activity?.SetTag("kb_health.note_id", noteId);
+
+        var note = await _db.Notes.FindAsync(new object[] { noteId }, cancellationToken);
+        if (note is null) return null;
+
+        var originalLength = note.Content.Length;
+
+        _db.NoteVersions.Add(new NoteVersion
+        {
+            NoteId = note.Id,
+            Title = note.Title,
+            Content = note.Content,
+            SavedAt = DateTime.UtcNow
+        });
+
+        var prompt = $"""
+            You are condensing a note for a personal knowledge base.
+            Summarize the following note, preserving all key ideas and insights.
+            Target length: under {_summarizeTargetLength} characters.
+            Output ONLY the summarized content — no preamble or explanation.
+
+            --- NOTE: {note.Title} ---
+            {note.Content}
+            """;
+
+        var response = await _chatClient.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, prompt)],
+            new ChatOptions { MaxOutputTokens = 1000, Temperature = 0.2f },
+            cancellationToken);
+
+        var summary = response.Text?.Trim() ?? note.Content;
+
+        note.Content = summary;
+        note.EmbedStatus = EmbedStatus.Stale;
+        note.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var summarizedLength = summary.Length;
+        var stillLarge = summarizedLength > _largeNoteThreshold;
+
+        if (stillLarge)
+            _logger.LogWarning(
+                "Summarized note {NoteId} still exceeds threshold ({Length} > {Threshold})",
+                noteId, summarizedLength, _largeNoteThreshold);
+        else
+            _logger.LogInformation(
+                "Summarized note {NoteId}: {Original} → {Summarized} chars",
+                noteId, originalLength, summarizedLength);
+
+        activity?.SetTag("kb_health.original_length", originalLength);
+        activity?.SetTag("kb_health.summarized_length", summarizedLength);
+        activity?.SetTag("kb_health.still_large", stillLarge);
+
+        return new SummarizeNoteResponse(noteId, originalLength, summarizedLength, stillLarge);
+    }
+
+    public async Task<SplitSuggestion?> GetSplitSuggestionsAsync(
+        string noteId, CancellationToken cancellationToken = default)
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.get_split_suggestions");
+        activity?.SetTag("kb_health.note_id", noteId);
+
+        var note = await _db.Notes.FindAsync(new object[] { noteId }, cancellationToken);
+        if (note is null) return null;
+
+        var prompt = $$"""
+            You are a Zettelkasten assistant. The following note is too large and contains multiple ideas.
+            Break it down into 2-5 atomic notes, each focusing on one distinct concept or idea.
+            Return ONLY valid JSON with no preamble, explanation, or markdown fencing.
+
+            Required JSON format:
+            {"notes":[{"title":"...", "content":"..."}]}
+
+            --- NOTE: {{note.Title}} ---
+            {{note.Content}}
+            """;
+
+        var response = await _chatClient.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, prompt)],
+            new ChatOptions { MaxOutputTokens = 2000, Temperature = 0.3f },
+            cancellationToken);
+
+        var raw = response.Text?.Trim() ?? "{}";
+        var json = StripMarkdownCodeFences(raw);
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<SplitSuggestionJson>(json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            var notes = (parsed?.Notes ?? [])
+                .Where(n => !string.IsNullOrWhiteSpace(n.Title) && !string.IsNullOrWhiteSpace(n.Content))
+                .Select(n => new SuggestedNote(n.Title!.Trim(), n.Content!.Trim()))
+                .ToList();
+
+            _logger.LogInformation(
+                "Split suggestions for note {NoteId}: {Count} atomic notes suggested",
+                noteId, notes.Count);
+
+            activity?.SetTag("kb_health.suggestion_count", notes.Count);
+            return new SplitSuggestion(noteId, note.Title, notes);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse split suggestion JSON for note {NoteId}", noteId);
+            return new SplitSuggestion(noteId, note.Title, []);
+        }
+    }
+
+    public async Task<ApplySplitResponse?> ApplySplitAsync(
+        string noteId, IReadOnlyList<SuggestedNote> notes, CancellationToken cancellationToken = default)
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.apply_split");
+        activity?.SetTag("kb_health.note_id", noteId);
+        activity?.SetTag("kb_health.note_count", notes.Count);
+
+        var original = await _db.Notes.FindAsync(new object[] { noteId }, cancellationToken);
+        if (original is null) return null;
+
+        var createdIds = new List<string>(notes.Count);
+
+        foreach (var suggested in notes)
+        {
+            var newId = GenerateId();
+            _db.Notes.Add(new Note
+            {
+                Id = newId,
+                Title = suggested.Title,
+                Content = suggested.Content,
+                Status = NoteStatus.Permanent,
+                EmbedStatus = EmbedStatus.Pending,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            });
+            createdIds.Add(newId);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Applied split for note {OriginalNoteId}: created {Count} new notes",
+            noteId, createdIds.Count);
+
+        ZettelTelemetry.NoteSplitsApplied.Add(1);
+        return new ApplySplitResponse(noteId, createdIds);
+    }
+
+    private static string StripMarkdownCodeFences(string text)
+    {
+        // Strip ```json ... ``` or ``` ... ``` wrappers that LLMs commonly add
+        var match = Regex.Match(text, @"```(?:json)?\s*([\s\S]*?)\s*```");
+        return match.Success ? match.Groups[1].Value.Trim() : text;
+    }
+
+    private static string GenerateId()
+    {
+        var now = DateTime.UtcNow;
+        return $"{now:yyyyMMddHHmmssfff}{Random.Shared.Next(1000, 9999)}";
+    }
+
+    // ── Internal JSON shape for LLM response parsing ─────────────────────────
+
+    private sealed class SplitSuggestionJson
+    {
+        public List<SuggestedNoteJson>? Notes { get; set; }
+    }
+
+    private sealed class SuggestedNoteJson
+    {
+        public string? Title { get; set; }
+        public string? Content { get; set; }
     }
 
     /// <summary>

@@ -65,4 +65,7 @@ public static class ZettelTelemetry
     public static readonly Histogram<double> KbHealthOverviewDuration =
         Meter.CreateHistogram<double>("zettel.kb_health.overview_duration", "ms",
             "Time to compute the full KB health overview (note load, wiki-link parse, pgvector edges, union-find).");
+
+    public static readonly Counter<long> NoteSplitsApplied =
+        Meter.CreateCounter<long>("zettel.kb_health.note_splits_applied", description: "Number of large note splits applied.");
 }
