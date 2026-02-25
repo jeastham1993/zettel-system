@@ -49,3 +49,17 @@ public record UnembeddedNote(
     DateTime CreatedAt,
     EmbedStatus EmbedStatus,
     string? EmbedError);
+
+/// <summary>A permanent note whose content exceeds the embedding character limit.</summary>
+public record LargeNote(
+    string Id,
+    string Title,
+    DateTime UpdatedAt,
+    int CharacterCount);
+
+/// <summary>Response returned after an LLM summarization of a large note.</summary>
+public record SummarizeNoteResponse(
+    string NoteId,
+    int OriginalLength,
+    int SummarizedLength,
+    bool StillLarge);

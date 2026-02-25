@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using ZettelWeb.Data;
 using ZettelWeb.Models;
@@ -13,12 +15,22 @@ public class KbHealthService : IKbHealthService
     private const double SuggestionThreshold = 0.6;
 
     private readonly ZettelDbContext _db;
+    private readonly IChatClient _chatClient;
     private readonly ILogger<KbHealthService> _logger;
+    private readonly int _largeNoteThreshold;
+    private readonly int _summarizeTargetLength;
 
-    public KbHealthService(ZettelDbContext db, ILogger<KbHealthService> logger)
+    public KbHealthService(
+        ZettelDbContext db,
+        IChatClient chatClient,
+        IConfiguration configuration,
+        ILogger<KbHealthService> logger)
     {
         _db = db;
+        _chatClient = chatClient;
         _logger = logger;
+        _largeNoteThreshold = configuration.GetValue("Embedding:MaxInputCharacters", 4_000);
+        _summarizeTargetLength = (int)(_largeNoteThreshold * 0.8);
     }
 
     public async Task<KbHealthOverview> GetOverviewAsync()
@@ -212,6 +224,14 @@ public class KbHealthService : IKbHealthService
         var target = await _db.Notes.FindAsync(targetNoteId);
         if (target is null) return null;
 
+        _db.NoteVersions.Add(new NoteVersion
+        {
+            NoteId = orphan.Id,
+            Title = orphan.Title,
+            Content = orphan.Content,
+            SavedAt = DateTime.UtcNow
+        });
+
         orphan.Content += $"<p>[[{target.Title}]]</p>";
         orphan.UpdatedAt = DateTime.UtcNow;
         orphan.EmbedStatus = EmbedStatus.Stale;
@@ -255,6 +275,84 @@ public class KbHealthService : IKbHealthService
 
         _logger.LogInformation("Embedding requeued for note {NoteId}", noteId);
         return 1;
+    }
+
+    public async Task<IReadOnlyList<LargeNote>> GetLargeNotesAsync()
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.get_large_notes");
+
+        var notes = await _db.Notes
+            .AsNoTracking()
+            .Where(n => n.Status == NoteStatus.Permanent && n.Content.Length > _largeNoteThreshold)
+            .OrderByDescending(n => n.Content.Length)
+            .Select(n => new LargeNote(n.Id, n.Title, n.UpdatedAt, n.Content.Length))
+            .ToListAsync();
+
+        activity?.SetTag("kb_health.large_note_count", notes.Count);
+        _logger.LogInformation("Found {Count} large notes above {Threshold} chars", notes.Count, _largeNoteThreshold);
+
+        return notes;
+    }
+
+    public async Task<SummarizeNoteResponse?> SummarizeNoteAsync(
+        string noteId, CancellationToken cancellationToken = default)
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("kb_health.summarize_note");
+        activity?.SetTag("kb_health.note_id", noteId);
+
+        var note = await _db.Notes.FindAsync(new object[] { noteId }, cancellationToken);
+        if (note is null) return null;
+
+        var originalLength = note.Content.Length;
+
+        _db.NoteVersions.Add(new NoteVersion
+        {
+            NoteId = note.Id,
+            Title = note.Title,
+            Content = note.Content,
+            SavedAt = DateTime.UtcNow
+        });
+
+        var prompt = $"""
+            You are condensing a note for a personal knowledge base.
+            Summarize the following note, preserving all key ideas and insights.
+            Target length: under {_summarizeTargetLength} characters.
+            Output ONLY the summarized content — no preamble or explanation.
+
+            --- NOTE: {note.Title} ---
+            {note.Content}
+            """;
+
+        var response = await _chatClient.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, prompt)],
+            new ChatOptions { MaxOutputTokens = 1000, Temperature = 0.2f },
+            cancellationToken);
+
+        var summary = response.Text?.Trim() ?? note.Content;
+
+        note.Content = summary;
+        note.EmbedStatus = EmbedStatus.Stale;
+        note.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var summarizedLength = summary.Length;
+        var stillLarge = summarizedLength > _largeNoteThreshold;
+
+        if (stillLarge)
+            _logger.LogWarning(
+                "Summarized note {NoteId} still exceeds threshold ({Length} > {Threshold})",
+                noteId, summarizedLength, _largeNoteThreshold);
+        else
+            _logger.LogInformation(
+                "Summarized note {NoteId}: {Original} → {Summarized} chars",
+                noteId, originalLength, summarizedLength);
+
+        activity?.SetTag("kb_health.original_length", originalLength);
+        activity?.SetTag("kb_health.summarized_length", summarizedLength);
+        activity?.SetTag("kb_health.still_large", stillLarge);
+
+        return new SummarizeNoteResponse(noteId, originalLength, summarizedLength, stillLarge);
     }
 
     /// <summary>

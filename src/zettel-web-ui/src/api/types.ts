@@ -243,3 +243,17 @@ export interface UnembeddedNote {
   embedStatus: EmbedStatus
   embedError: string | null
 }
+
+export interface LargeNote {
+  id: string
+  title: string
+  updatedAt: string
+  characterCount: number
+}
+
+export interface SummarizeNoteResponse {
+  noteId: string
+  originalLength: number
+  summarizedLength: number
+  stillLarge: boolean
+}

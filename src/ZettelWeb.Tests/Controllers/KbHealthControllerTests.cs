@@ -105,6 +105,52 @@ public class KbHealthControllerTests
         Assert.IsType<NotFoundResult>(result);
     }
 
+    // ── GET /api/kb-health/large-notes ───────────────────────────────────
+
+    [Fact]
+    public async Task GetLargeNotes_Returns200WithList()
+    {
+        var controller = CreateController(new FakeKbHealthService
+        {
+            LargeNotesResult = new List<LargeNote>
+            {
+                new("n1", "Big Note", DateTime.UtcNow, 5000),
+            }
+        });
+
+        var result = await controller.GetLargeNotes();
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var list = Assert.IsAssignableFrom<IReadOnlyList<LargeNote>>(ok.Value);
+        Assert.Single(list);
+    }
+
+    // ── POST /api/kb-health/large-notes/{id}/summarize ───────────────────
+
+    [Fact]
+    public async Task SummarizeNote_Returns200WithResponse()
+    {
+        var controller = CreateController(new FakeKbHealthService
+        {
+            SummarizeResult = new SummarizeNoteResponse("n1", 5000, 200, false)
+        });
+
+        var result = await controller.SummarizeNote("n1", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.IsType<SummarizeNoteResponse>(ok.Value);
+    }
+
+    [Fact]
+    public async Task SummarizeNote_Returns404WhenNoteNotFound()
+    {
+        var controller = CreateController(new FakeKbHealthService { SummarizeResult = null });
+
+        var result = await controller.SummarizeNote("missing", CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
     // ── Fake ────────────────────────────────────────────────────────────
 
     private class FakeKbHealthService : IKbHealthService
@@ -112,6 +158,8 @@ public class KbHealthControllerTests
         public Note? InsertResult { get; init; }
         public IReadOnlyList<UnembeddedNote> MissingEmbeddingsResult { get; init; } = Array.Empty<UnembeddedNote>();
         public int RequeueResult { get; init; }
+        public IReadOnlyList<LargeNote> LargeNotesResult { get; init; } = Array.Empty<LargeNote>();
+        public SummarizeNoteResponse? SummarizeResult { get; init; }
 
         public Task<KbHealthOverview> GetOverviewAsync() =>
             Task.FromResult(new KbHealthOverview(
@@ -132,5 +180,12 @@ public class KbHealthControllerTests
 
         public Task<int> RequeueEmbeddingAsync(string noteId) =>
             Task.FromResult(RequeueResult);
+
+        public Task<IReadOnlyList<LargeNote>> GetLargeNotesAsync() =>
+            Task.FromResult(LargeNotesResult);
+
+        public Task<SummarizeNoteResponse?> SummarizeNoteAsync(
+            string noteId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(SummarizeResult);
     }
 }

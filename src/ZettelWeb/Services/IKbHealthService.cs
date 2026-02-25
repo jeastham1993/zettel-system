@@ -9,4 +9,6 @@ public interface IKbHealthService
     Task<Note?> InsertWikilinkAsync(string orphanNoteId, string targetNoteId);
     Task<IReadOnlyList<UnembeddedNote>> GetNotesWithoutEmbeddingsAsync();
     Task<int> RequeueEmbeddingAsync(string noteId);
+    Task<IReadOnlyList<LargeNote>> GetLargeNotesAsync();
+    Task<SummarizeNoteResponse?> SummarizeNoteAsync(string noteId, CancellationToken cancellationToken = default);
 }

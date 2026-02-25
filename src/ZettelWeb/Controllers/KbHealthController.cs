@@ -85,4 +85,32 @@ public class KbHealthController : ControllerBase
         if (count == 0) return NotFound();
         return Ok();
     }
+
+    /// <summary>
+    /// All permanent notes whose content exceeds the embedding character limit,
+    /// ordered by descending character count.
+    /// </summary>
+    [HttpGet("large-notes")]
+    [ProducesResponseType<IReadOnlyList<LargeNote>>(200)]
+    public async Task<IActionResult> GetLargeNotes()
+    {
+        var notes = await _kbHealth.GetLargeNotesAsync();
+        return Ok(notes);
+    }
+
+    /// <summary>
+    /// Summarize a large note's content using an LLM, replacing the original.
+    /// The original content is preserved in version history. The note's embedding
+    /// is queued for refresh after summarization.
+    /// </summary>
+    /// <param name="id">The note ID to summarize.</param>
+    [HttpPost("large-notes/{id}/summarize")]
+    [ProducesResponseType<SummarizeNoteResponse>(200)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> SummarizeNote(string id, CancellationToken cancellationToken)
+    {
+        var response = await _kbHealth.SummarizeNoteAsync(id, cancellationToken);
+        if (response is null) return NotFound();
+        return Ok(response);
+    }
 }

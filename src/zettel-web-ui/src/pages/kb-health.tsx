@@ -14,6 +14,7 @@ import {
   Layers,
   RefreshCw,
   AlertCircle,
+  Scissors,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -28,7 +29,7 @@ import {
 import { toast } from 'sonner'
 import { relativeDate } from '@/lib/format'
 import * as kbHealthApi from '@/api/kb-health'
-import type { UnconnectedNote, ConnectionSuggestion, UnembeddedNote } from '@/api/types'
+import type { UnconnectedNote, ConnectionSuggestion, UnembeddedNote, LargeNote } from '@/api/types'
 
 // ── Scorecard ────────────────────────────────────────────────────────────────
 
@@ -274,6 +275,98 @@ function MissingEmbeddingsSection() {
   )
 }
 
+// ── Large Notes section ──────────────────────────────────────────────────────
+
+function LargeNotesSection() {
+  const queryClient = useQueryClient()
+
+  const { data: notes, isLoading } = useQuery({
+    queryKey: ['kb-health-large-notes'],
+    queryFn: kbHealthApi.getLargeNotes,
+  })
+
+  const summarizeMutation = useMutation({
+    mutationFn: (noteId: string) => kbHealthApi.summarizeNote(noteId),
+    onSuccess: (response) => {
+      if (response.stillLarge) {
+        toast.warning(
+          `Summarized but still large (${response.summarizedLength} chars) — consider manual editing`,
+        )
+      } else {
+        toast.success(
+          `Summarized: ${response.originalLength} → ${response.summarizedLength} chars. Embedding queued.`,
+        )
+      }
+      queryClient.invalidateQueries({ queryKey: ['kb-health-large-notes'] })
+      queryClient.invalidateQueries({ queryKey: ['kb-health-missing-embeddings'] })
+    },
+    onError: () => {
+      toast.error('Failed to summarize note')
+    },
+  })
+
+  return (
+    <section>
+      <div className="mb-3 flex items-center gap-2">
+        <Scissors className="h-4 w-4 text-muted-foreground" />
+        <h2 className="font-medium">Large Notes</h2>
+        {notes && (
+          <Badge variant="secondary" className="ml-auto">
+            {notes.length}
+          </Badge>
+        )}
+      </div>
+
+      {isLoading && <Skeleton className="h-32 w-full rounded-lg" />}
+
+      {!isLoading && notes?.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          All permanent notes are within the embedding character limit.
+        </p>
+      )}
+
+      {!isLoading && notes && notes.length > 0 && (
+        <ul className="space-y-1.5">
+          {notes.map((note: LargeNote) => (
+            <li
+              key={note.id}
+              className="flex items-center justify-between rounded-md border border-border/50 bg-card px-3 py-2 text-sm"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <Link
+                    to={`/notes/${note.id}`}
+                    className="truncate font-medium hover:underline"
+                  >
+                    {note.title}
+                  </Link>
+                  <Badge variant="outline" className="shrink-0 text-[10px]">
+                    {note.characterCount.toLocaleString()} chars
+                  </Badge>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-3 shrink-0 gap-1.5"
+                disabled={summarizeMutation.isPending && summarizeMutation.variables === note.id}
+                onClick={() => summarizeMutation.mutate(note.id)}
+              >
+                {summarizeMutation.isPending && summarizeMutation.variables === note.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Scissors className="h-3.5 w-3.5" />
+                )}
+                Summarize
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export function KbHealthPage() {
@@ -495,6 +588,9 @@ export function KbHealthPage() {
 
           {/* Missing Embeddings */}
           <MissingEmbeddingsSection />
+
+          {/* Large Notes */}
+          <LargeNotesSection />
         </div>
 
         {/* Right column: suggestion panel */}

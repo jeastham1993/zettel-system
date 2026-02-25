@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using ZettelWeb.Data;
 using ZettelWeb.Models;
@@ -10,7 +12,7 @@ namespace ZettelWeb.Tests.Services;
 /// Unit tests for KbHealthService using the InMemory provider.
 /// Semantic edge detection (pgvector) is skipped gracefully on InMemory —
 /// the tests cover wiki-link-based connectivity, orphan detection, cluster logic,
-/// embed metrics, seed tracking, and wikilink insertion.
+/// embed metrics, seed tracking, wikilink insertion, and large-note summarization.
 /// </summary>
 public class KbHealthServiceTests
 {
@@ -19,8 +21,33 @@ public class KbHealthServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
-    private static KbHealthService CreateService(ZettelDbContext db) =>
-        new(db, NullLogger<KbHealthService>.Instance);
+    private static KbHealthService CreateService(ZettelDbContext db, IChatClient? chatClient = null)
+    {
+        var config = new ConfigurationBuilder().Build(); // defaults apply (MaxInputCharacters=4000)
+        return new KbHealthService(db, chatClient ?? new FakeChatClient(), config, NullLogger<KbHealthService>.Instance);
+    }
+
+    // ── FakeChatClient ──────────────────────────────────────────────────────
+
+    private sealed class FakeChatClient : IChatClient
+    {
+        public string Response { get; set; } = "Summarized content.";
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, Response)));
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
+    }
 
     // ── GetOverviewAsync ────────────────────────────────────────────────────
 
@@ -259,6 +286,23 @@ public class KbHealthServiceTests
         Assert.True(updated!.UpdatedAt >= before);
     }
 
+    [Fact]
+    public async Task InsertWikilink_SavesNoteVersionWithOriginalContent()
+    {
+        var db = CreateDb();
+        db.Notes.AddRange(
+            new Note { Id = "orphan", Title = "Orphan", Content = "<p>Original.</p>" },
+            new Note { Id = "target", Title = "Target", Content = "T" });
+        await db.SaveChangesAsync();
+
+        await CreateService(db).InsertWikilinkAsync("orphan", "target");
+
+        var versions = db.NoteVersions.Where(v => v.NoteId == "orphan").ToList();
+        Assert.Single(versions);
+        Assert.Equal("<p>Original.</p>", versions[0].Content);
+        Assert.Equal("Orphan", versions[0].Title);
+    }
+
     // ── GetNotesWithoutEmbeddingsAsync ──────────────────────────────────────
 
     [Fact]
@@ -366,5 +410,160 @@ public class KbHealthServiceTests
         var suggestions = await CreateService(db).GetConnectionSuggestionsAsync("n1");
 
         Assert.Empty(suggestions);
+    }
+
+    // ── GetLargeNotesAsync ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetLargeNotes_ReturnsOnlyNotesAboveThreshold()
+    {
+        var db = CreateDb();
+        var smallContent = new string('x', 100);
+        var largeContent = new string('x', 5000); // > default 4000 threshold
+        db.Notes.AddRange(
+            new Note { Id = "small", Title = "Small", Content = smallContent, Status = NoteStatus.Permanent },
+            new Note { Id = "large", Title = "Large", Content = largeContent, Status = NoteStatus.Permanent });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).GetLargeNotesAsync();
+
+        Assert.Single(result);
+        Assert.Equal("large", result[0].Id);
+        Assert.Equal(5000, result[0].CharacterCount);
+    }
+
+    [Fact]
+    public async Task GetLargeNotes_ExcludesFleetingNotes()
+    {
+        var db = CreateDb();
+        var largeContent = new string('x', 5000);
+        db.Notes.Add(new Note
+        {
+            Id = "fleeting", Title = "Fleeting", Content = largeContent,
+            Status = NoteStatus.Fleeting
+        });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).GetLargeNotesAsync();
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetLargeNotes_OrdersByCharacterCountDescending()
+    {
+        var db = CreateDb();
+        db.Notes.AddRange(
+            new Note { Id = "n1", Title = "Medium", Content = new string('x', 4500), Status = NoteStatus.Permanent },
+            new Note { Id = "n2", Title = "Largest", Content = new string('x', 8000), Status = NoteStatus.Permanent },
+            new Note { Id = "n3", Title = "Large", Content = new string('x', 6000), Status = NoteStatus.Permanent });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).GetLargeNotesAsync();
+
+        Assert.Equal(3, result.Count);
+        Assert.Equal("n2", result[0].Id); // 8000 first
+        Assert.Equal("n3", result[1].Id); // 6000 second
+        Assert.Equal("n1", result[2].Id); // 4500 third
+    }
+
+    [Fact]
+    public async Task GetLargeNotes_EmptyWhenAllNotesSmall()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note { Id = "n1", Title = "Small", Content = "short", Status = NoteStatus.Permanent });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).GetLargeNotesAsync();
+
+        Assert.Empty(result);
+    }
+
+    // ── SummarizeNoteAsync ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SummarizeNote_ReturnsNullWhenNoteNotFound()
+    {
+        var db = CreateDb();
+
+        var result = await CreateService(db).SummarizeNoteAsync("missing");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task SummarizeNote_ReplacesContentWithLlmSummary()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note { Id = "n1", Title = "Big Note", Content = new string('x', 5000) });
+        await db.SaveChangesAsync();
+
+        var fake = new FakeChatClient { Response = "Condensed summary." };
+        var result = await CreateService(db, fake).SummarizeNoteAsync("n1");
+
+        var note = await db.Notes.FindAsync("n1");
+        Assert.Equal("Condensed summary.", note!.Content);
+        Assert.NotNull(result);
+        Assert.Equal("n1", result!.NoteId);
+        Assert.Equal(5000, result.OriginalLength);
+        Assert.Equal("Condensed summary.".Length, result.SummarizedLength);
+    }
+
+    [Fact]
+    public async Task SummarizeNote_SetsEmbedStatusToStale()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note { Id = "n1", Title = "T", Content = new string('x', 5000), EmbedStatus = EmbedStatus.Completed });
+        await db.SaveChangesAsync();
+
+        await CreateService(db).SummarizeNoteAsync("n1");
+
+        var note = await db.Notes.FindAsync("n1");
+        Assert.Equal(EmbedStatus.Stale, note!.EmbedStatus);
+    }
+
+    [Fact]
+    public async Task SummarizeNote_SavesNoteVersionWithOriginalContent()
+    {
+        var db = CreateDb();
+        var original = new string('x', 5000);
+        db.Notes.Add(new Note { Id = "n1", Title = "Big Note", Content = original });
+        await db.SaveChangesAsync();
+
+        await CreateService(db).SummarizeNoteAsync("n1");
+
+        var versions = db.NoteVersions.Where(v => v.NoteId == "n1").ToList();
+        Assert.Single(versions);
+        Assert.Equal(original, versions[0].Content);
+        Assert.Equal("Big Note", versions[0].Title);
+    }
+
+    [Fact]
+    public async Task SummarizeNote_StillLargeIsTrueWhenSummaryExceedsThreshold()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note { Id = "n1", Title = "T", Content = new string('x', 5000) });
+        await db.SaveChangesAsync();
+
+        // LLM returns content still > 4000 chars
+        var fake = new FakeChatClient { Response = new string('y', 4500) };
+        var result = await CreateService(db, fake).SummarizeNoteAsync("n1");
+
+        Assert.NotNull(result);
+        Assert.True(result!.StillLarge);
+    }
+
+    [Fact]
+    public async Task SummarizeNote_StillLargeIsFalseWhenSummaryWithinThreshold()
+    {
+        var db = CreateDb();
+        db.Notes.Add(new Note { Id = "n1", Title = "T", Content = new string('x', 5000) });
+        await db.SaveChangesAsync();
+
+        var fake = new FakeChatClient { Response = "Short summary." };
+        var result = await CreateService(db, fake).SummarizeNoteAsync("n1");
+
+        Assert.NotNull(result);
+        Assert.False(result!.StillLarge);
     }
 }
