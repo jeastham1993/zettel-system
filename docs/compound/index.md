@@ -2,7 +2,7 @@
 
 Searchable knowledge base of solved problems, patterns, and learnings.
 
-Last Updated: 2026-02-24 (session 2)
+Last Updated: 2026-02-25 (session 3)
 
 ## Database
 
@@ -23,6 +23,8 @@ Last Updated: 2026-02-24 (session 2)
 | ID | Title | Type | Tags |
 |----|-------|------|------|
 | [DN-001](dotnet/DN-001-options-init-vs-set-configuration-binding.md) | .NET Options Classes: Use `set`, Not `init`, for Configuration Binding | problem-solution | dotnet, options-pattern, configuration-binding, init, set |
+| [DN-002](dotnet/DN-002-double-dollar-raw-string-for-json-in-llm-prompts.md) | Use `$$"""` Raw Strings When Embedding JSON Examples in LLM Prompts | problem-solution | csharp, raw-strings, json, llm-prompts, compiler-error |
+| [DN-003](dotnet/DN-003-meai-v10-chatcompletion-to-chatresponse-rename.md) | Microsoft.Extensions.AI v10.x Renamed ChatCompletion → ChatResponse | problem-solution | dotnet, microsoft-extensions-ai, ichatclient, breaking-change |
 
 ## Infrastructure
 
@@ -31,6 +33,8 @@ Last Updated: 2026-02-24 (session 2)
 | [INFRA-001](infrastructure/INFRA-001-ollama-embedding-context-limit.md) | Ollama Embedding Model Context Length Exceeded | problem-solution | ollama, embedding, nomic-embed-text, truncation |
 | [INFRA-002](infrastructure/INFRA-002-startup-configuration-logging.md) | Startup Configuration Logging for Deployment Debugging | pattern | configuration, startup, logging, aspnetcore, deployment |
 | [INFRA-003](infrastructure/INFRA-003-ollama-httpclient-timeout-not-configurable.md) | OllamaSharp HttpClient Timeout Hardcoded at 100s | problem-solution | ollama, httpclient, timeout, ubuntu, cpu-inference |
+| [INFRA-004](infrastructure/INFRA-004-embedding-similarity-thresholds-are-model-specific.md) | Embedding Similarity Thresholds Are Model-Specific | problem-solution | embedding, cosine-similarity, bedrock, titan, thresholds |
+| [INFRA-005](infrastructure/INFRA-005-hnsw-index-dimension-mismatch-on-provider-switch.md) | HNSW Index Dimension Mismatch When Switching Embedding Providers | problem-solution | pgvector, hnsw, dimensions, bedrock, ollama, postgresql |
 
 ## Mobile
 

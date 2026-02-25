@@ -88,6 +88,17 @@ create an inconsistent mental model.
 - ADR-001: Controllers → Services → EF Core
 - ADR-008: Content generation uses `IChatClient` synchronously (same pattern)
 
+## Lessons Learned (added 2026-02-25)
+
+- **`$$"""` raw strings for LLM prompts**: Prompts that include JSON format examples
+  must use `$$"""` (double-dollar raw string) rather than `$"""`. Single `{` in JSON
+  conflicts with C# interpolation syntax. See [DN-002](../compound/dotnet/DN-002-double-dollar-raw-string-for-json-in-llm-prompts.md).
+- **Strip markdown code fences from LLM JSON responses**: Even when explicitly told
+  to return raw JSON, LLMs reliably wrap output in ` ```json ... ``` `. Add
+  `StripMarkdownCodeFences` before `JsonSerializer.Deserialize`.
+- **LLM JSON parsing should fail gracefully**: Return an empty suggestion list rather
+  than propagating a `JsonException` to the caller — the user can try again.
+
 ## Notes
 
 Migration path if synchronous becomes a bottleneck:
