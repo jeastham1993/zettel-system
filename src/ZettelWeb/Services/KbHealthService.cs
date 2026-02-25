@@ -14,13 +14,13 @@ public class KbHealthService : IKbHealthService
 {
     private const int OrphanWindowDays = 30;
     private const int TopClusterCount = 5;
-    private const double SuggestionThreshold = 0.6;
 
     private readonly ZettelDbContext _db;
     private readonly IChatClient _chatClient;
     private readonly ILogger<KbHealthService> _logger;
     private readonly int _largeNoteThreshold;
     private readonly int _summarizeTargetLength;
+    private readonly double _suggestionThreshold;
 
     public KbHealthService(
         ZettelDbContext db,
@@ -33,6 +33,9 @@ public class KbHealthService : IKbHealthService
         _logger = logger;
         _largeNoteThreshold = configuration.GetValue("Embedding:MaxInputCharacters", 4_000);
         _summarizeTargetLength = (int)(_largeNoteThreshold * 0.8);
+        // Default 0.3: works across embedding models with compressed score distributions
+        // (e.g. Titan Embeddings). Raise toward 0.6 if nomic-embed-text is in use.
+        _suggestionThreshold = configuration.GetValue("Search:_suggestionThreshold", 0.3);
     }
 
     public async Task<KbHealthOverview> GetOverviewAsync()
@@ -99,7 +102,7 @@ public class KbHealthService : IKbHealthService
                     ) n2
                     WHERE n1."Embedding" IS NOT NULL
                       AND n1."Status" = 'Permanent'
-                      AND (1 - (n1."Embedding"::vector <=> n2."Embedding"::vector)) > {SuggestionThreshold}
+                      AND (1 - (n1."Embedding"::vector <=> n2."Embedding"::vector)) > {_suggestionThreshold}
                     """)
                 .ToListAsync();
 
@@ -202,7 +205,7 @@ public class KbHealthService : IKbHealthService
                     ) n2
                     WHERE n1."Id" = {noteId}
                       AND n1."Embedding" IS NOT NULL
-                      AND (1 - (n1."Embedding"::vector <=> n2."Embedding"::vector)) > {SuggestionThreshold}
+                      AND (1 - (n1."Embedding"::vector <=> n2."Embedding"::vector)) > {_suggestionThreshold}
                     ORDER BY "Similarity" DESC
                     """)
                 .ToListAsync();
