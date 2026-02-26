@@ -18,6 +18,9 @@ public class ZettelDbContext : DbContext
     public DbSet<VoiceExample> VoiceExamples => Set<VoiceExample>();
     public DbSet<VoiceConfig> VoiceConfigs => Set<VoiceConfig>();
     public DbSet<UsedSeedNote> UsedSeedNotes => Set<UsedSeedNote>();
+    public DbSet<ResearchAgenda> ResearchAgendas => Set<ResearchAgenda>();
+    public DbSet<ResearchTask> ResearchTasks => Set<ResearchTask>();
+    public DbSet<ResearchFinding> ResearchFindings => Set<ResearchFinding>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -146,6 +149,85 @@ public class ZettelDbContext : DbContext
         {
             entity.HasKey(e => e.NoteId);
             entity.Property(e => e.NoteId).HasMaxLength(21);
+        });
+
+        modelBuilder.Entity<ResearchAgenda>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(21);
+            entity.Property(e => e.TriggeredFromNoteId).HasMaxLength(21);
+            entity.Property(e => e.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(ResearchAgendaStatus.Pending);
+            entity.HasMany(e => e.Tasks)
+                .WithOne()
+                .HasForeignKey(t => t.AgendaId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // I3: FK to Notes (nullable — note may be deleted; set null, don't block)
+            entity.HasOne<Note>()
+                .WithMany()
+                .HasForeignKey(e => e.TriggeredFromNoteId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ResearchTask>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(21);
+            entity.Property(e => e.AgendaId).HasMaxLength(21).IsRequired();
+            entity.Property(e => e.Query).IsRequired();
+            entity.Property(e => e.Motivation).IsRequired();
+            entity.Property(e => e.MotivationNoteId).HasMaxLength(21);
+            entity.Property(e => e.SourceType)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+            entity.Property(e => e.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(ResearchTaskStatus.Pending);
+            entity.HasIndex(e => e.AgendaId);
+            // I2: Restrict delete — findings should not be silently destroyed
+            entity.HasMany(e => e.Findings)
+                .WithOne()
+                .HasForeignKey(f => f.TaskId)
+                .OnDelete(DeleteBehavior.Restrict);
+            // I3: FK to Notes (nullable)
+            entity.HasOne<Note>()
+                .WithMany()
+                .HasForeignKey(e => e.MotivationNoteId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ResearchFinding>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(21);
+            entity.Property(e => e.TaskId).HasMaxLength(21).IsRequired();
+            entity.Property(e => e.Title).IsRequired();
+            entity.Property(e => e.Synthesis).IsRequired();
+            entity.Property(e => e.SourceUrl).IsRequired();
+            entity.Property(e => e.AcceptedFleetingNoteId).HasMaxLength(21);
+            entity.Property(e => e.SourceType)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+            entity.Property(e => e.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(ResearchFindingStatus.Pending);
+            entity.Property(e => e.SimilarNoteIds)
+                .HasColumnType("jsonb");
+            entity.HasIndex(e => e.TaskId);
+            // I9: composite index covers WHERE Status = 'Pending' ORDER BY CreatedAt DESC
+            entity.HasIndex(e => new { e.Status, e.CreatedAt });
+            // I3: FK to Notes (nullable — accepted fleeting note should not be blocked from deletion)
+            entity.HasOne<Note>()
+                .WithMany()
+                .HasForeignKey(e => e.AcceptedFleetingNoteId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

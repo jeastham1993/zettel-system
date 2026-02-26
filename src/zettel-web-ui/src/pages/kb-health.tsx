@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Scissors,
   Split,
+  Telescope,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,7 +31,9 @@ import {
 import { toast } from 'sonner'
 import { relativeDate } from '@/lib/format'
 import * as kbHealthApi from '@/api/kb-health'
-import type { UnconnectedNote, ConnectionSuggestion, UnembeddedNote, LargeNote, SplitSuggestion, SuggestedNote } from '@/api/types'
+import * as researchApi from '@/api/research'
+import { ResearchAgendaModal } from '@/components/research-agenda-modal'
+import type { UnconnectedNote, ConnectionSuggestion, UnembeddedNote, LargeNote, SplitSuggestion, SuggestedNote, ResearchAgenda } from '@/api/types'
 
 // ── Scorecard ────────────────────────────────────────────────────────────────
 
@@ -498,6 +501,17 @@ export function KbHealthPage() {
 
   const [selectedOrphan, setSelectedOrphan] = useState<UnconnectedNote | null>(null)
   const [pendingLink, setPendingLink] = useState<ConnectionSuggestion | null>(null)
+  const [pendingAgenda, setPendingAgenda] = useState<ResearchAgenda | null>(null)
+
+  const triggerResearchMutation = useMutation({
+    mutationFn: () => researchApi.triggerResearch(),
+    onSuccess: (agenda) => {
+      setPendingAgenda(agenda)
+    },
+    onError: () => {
+      toast.error('Failed to generate research agenda')
+    },
+  })
 
   const { data: overview, isLoading } = useQuery({
     queryKey: ['kb-health'],
@@ -522,11 +536,27 @@ export function KbHealthPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      <div className="mb-6">
-        <h1 className="font-serif text-2xl font-bold tracking-tight">Knowledge Health</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Weekly view of your KB's structure — clusters, orphans, and untapped seeds.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-serif text-2xl font-bold tracking-tight">Knowledge Health</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Weekly view of your KB's structure — clusters, orphans, and untapped seeds.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 gap-1.5"
+          onClick={() => triggerResearchMutation.mutate()}
+          disabled={triggerResearchMutation.isPending}
+        >
+          {triggerResearchMutation.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Telescope className="h-3.5 w-3.5" />
+          )}
+          Run Research
+        </Button>
       </div>
 
       {/* Scorecard */}
@@ -742,6 +772,14 @@ export function KbHealthPage() {
             })
           }
           isPending={addLinkMutation.isPending}
+        />
+      )}
+
+      {pendingAgenda && (
+        <ResearchAgendaModal
+          agenda={pendingAgenda}
+          onClose={() => setPendingAgenda(null)}
+          onApproved={() => setPendingAgenda(null)}
         />
       )}
     </div>

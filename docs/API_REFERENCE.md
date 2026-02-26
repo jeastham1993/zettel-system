@@ -445,3 +445,67 @@ Insert a `[[TargetTitle]]` wikilink at the end of an orphan note's content. Sets
 ```
 
 **Response:** `200 OK` — updated orphan note | `404 Not Found` — if orphan or target note not found
+
+---
+
+## Research
+
+Autonomous research agent that analyses KB health, generates search queries, and produces findings for human review.
+
+### `POST /api/research/trigger`
+Trigger a research run. Analyses the KB, generates a research agenda with search queries.
+
+**Body:**
+```json
+{ "sourceNoteId": "string | null" }
+```
+
+**Response:** `201 Created` — `ResearchAgenda` object with tasks.
+
+---
+
+### `POST /api/research/agenda/{agendaId}/approve`
+Approve a research agenda and start async execution. Returns immediately (fire-and-forget).
+
+**Body:**
+```json
+{ "blockedTaskIds": ["string"] }
+```
+
+**Response:** `202 Accepted`
+
+---
+
+### `GET /api/research/findings`
+Get all pending research findings awaiting review.
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "string",
+    "taskId": "string",
+    "title": "string",
+    "synthesis": "string",
+    "sourceUrl": "string",
+    "sourceType": "WebSearch | Arxiv",
+    "status": "Pending | Accepted | Dismissed",
+    "createdAt": "datetime",
+    "reviewedAt": "datetime | null"
+  }
+]
+```
+
+---
+
+### `POST /api/research/findings/{findingId}/accept`
+Accept a finding — creates a fleeting note from the synthesis.
+
+**Response:** `201 Created` — Note object | `404 Not Found`
+
+---
+
+### `POST /api/research/findings/{findingId}/dismiss`
+Dismiss a finding.
+
+**Response:** `204 No Content`

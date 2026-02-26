@@ -277,3 +277,33 @@ export interface ApplySplitResponse {
   originalNoteId: string
   createdNoteIds: string[]
 }
+
+// Research Agent types
+export interface ResearchTask {
+  id: string
+  query: string
+  sourceType: 'WebSearch' | 'Arxiv'
+  motivation: string
+  status: 'Pending' | 'Blocked' | 'Completed' | 'Failed'
+}
+
+export interface ResearchAgenda {
+  id: string
+  triggeredFromNoteId?: string
+  status: 'Pending' | 'Approved' | 'Executing' | 'Completed' | 'Cancelled'
+  tasks: ResearchTask[]
+  createdAt: string
+  approvedAt?: string
+}
+
+export interface ResearchFinding {
+  id: string
+  taskId: string
+  title: string
+  synthesis: string
+  sourceUrl: string
+  sourceType: 'WebSearch' | 'Arxiv'
+  status: 'Pending' | 'Accepted' | 'Dismissed'
+  createdAt: string
+  reviewedAt?: string
+}

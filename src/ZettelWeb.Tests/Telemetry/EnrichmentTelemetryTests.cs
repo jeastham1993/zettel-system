@@ -7,6 +7,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ZettelWeb.Background;
 using ZettelWeb.Data;
 using ZettelWeb.Models;
+using ZettelWeb.Services;
+using ZettelWeb.Tests.Background;
 using ZettelWeb.Tests.Fakes;
 
 namespace ZettelWeb.Tests.Telemetry;
@@ -61,6 +63,7 @@ public class EnrichmentTelemetryTests : IDisposable
 
         return (new EnrichmentBackgroundService(
             queue, sp, httpFactory,
+            new TestableUrlSafetyChecker(),
             NullLogger<EnrichmentBackgroundService>.Instance,
             config), db);
     }

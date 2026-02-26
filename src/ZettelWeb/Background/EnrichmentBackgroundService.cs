@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ZettelWeb.Data;
 using ZettelWeb.Models;
+using ZettelWeb.Services;
 
 namespace ZettelWeb.Background;
 
@@ -19,23 +18,25 @@ public partial class EnrichmentBackgroundService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<EnrichmentBackgroundService> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IUrlSafetyChecker _urlSafetyChecker;
     private readonly int _timeoutSeconds;
     private readonly int _maxRetries;
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(60);
 
     private const int MaxHtmlBytes = 512_000; // 512KB max response body
-    private const int HtmlTruncateChars = 102_400; // 100KB regex processing limit
 
     public EnrichmentBackgroundService(
         IEnrichmentQueue queue,
         IServiceProvider serviceProvider,
         IHttpClientFactory httpClientFactory,
+        IUrlSafetyChecker urlSafetyChecker,
         ILogger<EnrichmentBackgroundService> logger,
         IConfiguration configuration)
     {
         _queue = queue;
         _serviceProvider = serviceProvider;
         _httpClientFactory = httpClientFactory;
+        _urlSafetyChecker = urlSafetyChecker;
         _logger = logger;
         _timeoutSeconds = configuration.GetValue("Capture:EnrichmentTimeoutSeconds", 10);
         _maxRetries = configuration.GetValue("Capture:EnrichmentMaxRetries", 3);
@@ -179,7 +180,7 @@ public partial class EnrichmentBackgroundService : BackgroundService
             {
                 try
                 {
-                    if (!await IsUrlSafeAsync(url, cancellationToken))
+                    if (!await _urlSafetyChecker.IsUrlSafeAsync(url, cancellationToken))
                     {
                         _logger.LogWarning("Skipping unsafe URL {Url} for note {NoteId} (SSRF protection)",
                             url, noteId);
@@ -244,65 +245,6 @@ public partial class EnrichmentBackgroundService : BackgroundService
         return matches.Select(m => m.Value.TrimEnd('.', ',', ';', ')', ']')).Distinct().ToList();
     }
 
-    public async Task<bool> IsUrlSafeAsync(string url, CancellationToken cancellationToken)
-    {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-            return false;
-
-        if (uri.Scheme != "http" && uri.Scheme != "https")
-            return false;
-
-        try
-        {
-            var addresses = await ResolveHostAsync(uri.Host, cancellationToken);
-            foreach (var addr in addresses)
-            {
-                if (IsPrivateAddress(addr))
-                    return false;
-            }
-        }
-        catch
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    protected virtual async Task<IPAddress[]> ResolveHostAsync(string host, CancellationToken cancellationToken)
-    {
-        return await Dns.GetHostAddressesAsync(host, cancellationToken);
-    }
-
-    public static bool IsPrivateAddress(IPAddress address)
-    {
-        if (IPAddress.IsLoopback(address))
-            return true;
-
-        if (address.AddressFamily == AddressFamily.InterNetworkV6)
-        {
-            // ::1 caught by IsLoopback. fc00::/7 (unique local) and fe80::/10 (link-local)
-            var bytes = address.GetAddressBytes();
-            if ((bytes[0] & 0xFE) == 0xFC) return true; // fc00::/7
-            if (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80) return true; // fe80::/10
-            return false;
-        }
-
-        var ipBytes = address.GetAddressBytes();
-        // 10.0.0.0/8
-        if (ipBytes[0] == 10) return true;
-        // 172.16.0.0/12
-        if (ipBytes[0] == 172 && ipBytes[1] >= 16 && ipBytes[1] <= 31) return true;
-        // 192.168.0.0/16
-        if (ipBytes[0] == 192 && ipBytes[1] == 168) return true;
-        // 127.0.0.0/8
-        if (ipBytes[0] == 127) return true;
-        // 169.254.0.0/16
-        if (ipBytes[0] == 169 && ipBytes[1] == 254) return true;
-
-        return false;
-    }
-
     public async Task<UrlEnrichment> FetchUrlMetadataAsync(string url, CancellationToken cancellationToken)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -322,77 +264,15 @@ public partial class EnrichmentBackgroundService : BackgroundService
         return new UrlEnrichment
         {
             Url = url,
-            Title = ExtractTitle(html),
-            Description = ExtractDescription(html),
-            ContentExcerpt = ExtractContentExcerpt(html),
+            Title = HtmlSanitiser.ExtractTitle(html),
+            Description = HtmlSanitiser.ExtractDescription(html),
+            ContentExcerpt = HtmlSanitiser.ExtractContentExcerpt(html),
             FetchedAt = DateTime.UtcNow,
         };
     }
 
-    public static string? ExtractTitle(string html)
-    {
-        // Truncate before regex to prevent ReDoS
-        var truncated = html.Length > HtmlTruncateChars ? html[..HtmlTruncateChars] : html;
-        var match = TitleRegex().Match(truncated);
-        if (!match.Success) return null;
-
-        var title = match.Groups[1].Value.Trim();
-        return string.IsNullOrWhiteSpace(title) ? null : System.Net.WebUtility.HtmlDecode(title);
-    }
-
-    public static string? ExtractDescription(string html)
-    {
-        var truncated = html.Length > HtmlTruncateChars ? html[..HtmlTruncateChars] : html;
-        var match = MetaDescriptionRegex().Match(truncated);
-        if (!match.Success)
-            match = MetaDescriptionAltRegex().Match(truncated);
-        if (!match.Success) return null;
-
-        var desc = match.Groups[1].Value.Trim();
-        return string.IsNullOrWhiteSpace(desc) ? null : System.Net.WebUtility.HtmlDecode(desc);
-    }
-
-    public static string? ExtractContentExcerpt(string html)
-    {
-        var truncated = html.Length > HtmlTruncateChars ? html[..HtmlTruncateChars] : html;
-        var bodyMatch = BodyRegex().Match(truncated);
-        var body = bodyMatch.Success ? bodyMatch.Groups[1].Value : truncated;
-
-        body = ScriptStyleRegex().Replace(body, " ");
-        body = HtmlTagRegex().Replace(body, " ");
-        body = System.Net.WebUtility.HtmlDecode(body);
-        body = WhitespaceRegex().Replace(body, " ").Trim();
-
-        if (string.IsNullOrWhiteSpace(body)) return null;
-
-        return body.Length > 500 ? body[..500] : body;
-    }
-
-    // C3: All regexes converted to [GeneratedRegex] with NonBacktracking where applicable
-
     [GeneratedRegex(@"https?://[^\s<>""']+", RegexOptions.IgnoreCase)]
     private static partial Regex UrlRegex();
-
-    [GeneratedRegex(@"<title[^>]*>(.*?)</title>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
-    private static partial Regex TitleRegex();
-
-    [GeneratedRegex(@"<meta\s+(?:[^>]*?\s+)?(?:name\s*=\s*[""']description[""']|property\s*=\s*[""']og:description[""'])\s+(?:[^>]*?\s+)?content\s*=\s*[""']([^""']*)[""']", RegexOptions.IgnoreCase)]
-    private static partial Regex MetaDescriptionRegex();
-
-    [GeneratedRegex(@"<meta\s+(?:[^>]*?\s+)?content\s*=\s*[""']([^""']*)[""']\s+(?:[^>]*?\s+)?(?:name\s*=\s*[""']description[""']|property\s*=\s*[""']og:description[""'])", RegexOptions.IgnoreCase)]
-    private static partial Regex MetaDescriptionAltRegex();
-
-    [GeneratedRegex(@"<[^>]+>", RegexOptions.NonBacktracking)]
-    private static partial Regex HtmlTagRegex();
-
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex WhitespaceRegex();
-
-    [GeneratedRegex(@"<body[^>]*>(.*?)</body>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
-    private static partial Regex BodyRegex();
-
-    [GeneratedRegex(@"<script[^>]*>.*?</script>|<style[^>]*>.*?</style>|<nav[^>]*>.*?</nav>|<header[^>]*>.*?</header>|<footer[^>]*>.*?</footer>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.NonBacktracking)]
-    private static partial Regex ScriptStyleRegex();
 }
 
 public record EnrichmentResult

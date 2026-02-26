@@ -68,4 +68,16 @@ public static class ZettelTelemetry
 
     public static readonly Counter<long> NoteSplitsApplied =
         Meter.CreateCounter<long>("zettel.kb_health.note_splits_applied", description: "Number of large note splits applied.");
+
+    // I4: separate agenda creation (trigger) from actual execution
+    public static readonly Counter<long> ResearchAgendasCreated = Meter.CreateCounter<long>(
+        "zettel.research.agendas_created", description: "Research agendas created (trigger, before user approval)");
+    public static readonly Counter<long> ResearchRunsTotal = Meter.CreateCounter<long>(
+        "zettel.research.runs_total", description: "Research agent execution runs started");
+    public static readonly Counter<long> ResearchFindingsCreated = Meter.CreateCounter<long>(
+        "zettel.research.findings_created", description: "Research findings created");
+    public static readonly Counter<long> ResearchFindingsDeduplicated = Meter.CreateCounter<long>(
+        "zettel.research.findings_deduplicated", description: "Research findings skipped as near-duplicates");
+    public static readonly Counter<long> ResearchFindingsAccepted = Meter.CreateCounter<long>(
+        "zettel.research.findings_accepted", description: "Research findings accepted into the KB");
 }

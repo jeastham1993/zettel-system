@@ -25,6 +25,9 @@ const VoiceConfigPage = lazy(() =>
 const KbHealthPage = lazy(() =>
   import('./pages/kb-health').then((m) => ({ default: m.KbHealthPage })),
 )
+const ResearchPage = lazy(() =>
+  import('./pages/research').then((m) => ({ default: m.ResearchPage })),
+)
 
 function LazyFallback() {
   return (
@@ -89,6 +92,14 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LazyFallback />}>
             <KbHealthPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/research',
+        element: (
+          <Suspense fallback={<LazyFallback />}>
+            <ResearchPage />
           </Suspense>
         ),
       },

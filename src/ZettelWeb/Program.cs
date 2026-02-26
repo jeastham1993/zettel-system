@@ -96,6 +96,7 @@ var searchWeights = builder.Configuration.GetSection("Search").Get<SearchWeights
 
 builder.Services.AddSingleton<IEmbeddingQueue, ChannelEmbeddingQueue>();
 builder.Services.AddSingleton<IEnrichmentQueue, ChannelEnrichmentQueue>();
+builder.Services.AddSingleton<IUrlSafetyChecker, UrlSafetyChecker>();
 builder.Services.AddScoped<INoteService>(sp =>
     new NoteService(
         sp.GetRequiredService<ZettelDbContext>(),
@@ -161,6 +162,17 @@ if (!isLambda)
 }
 
 builder.Services.AddHttpClient("Enrichment");
+builder.Services.Configure<ResearchOptions>(builder.Configuration.GetSection(ResearchOptions.SectionName));
+builder.Services.AddHttpClient("BraveSearch", c => c.Timeout = TimeSpan.FromSeconds(15));  // C3: explicit timeout
+builder.Services.AddHttpClient("Arxiv", c => c.Timeout = TimeSpan.FromSeconds(15));         // C3: explicit timeout
+builder.Services.AddSingleton<IWebSearchClient, BraveSearchClient>();
+builder.Services.AddSingleton<IArxivClient, ArxivApiClient>();
+builder.Services.AddScoped<IResearchAgentService, ResearchAgentService>();
+builder.Services.AddSingleton<IResearchExecutionQueue, ChannelResearchExecutionQueue>();
+if (!isLambda)
+{
+    builder.Services.AddHostedService<ResearchExecutionBackgroundService>();
+}
 
 if (!isLambda)
 {

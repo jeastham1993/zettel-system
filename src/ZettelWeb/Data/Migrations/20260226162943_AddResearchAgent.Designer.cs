@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ZettelWeb.Data;
@@ -11,9 +12,11 @@ using ZettelWeb.Data;
 namespace ZettelWeb.Data.Migrations
 {
     [DbContext(typeof(ZettelDbContext))]
-    partial class ZettelDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260226162943_AddResearchAgent")]
+    partial class AddResearchAgent
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -295,8 +298,6 @@ namespace ZettelWeb.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TriggeredFromNoteId");
-
                     b.ToTable("ResearchAgendas");
                 });
 
@@ -354,11 +355,9 @@ namespace ZettelWeb.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AcceptedFleetingNoteId");
+                    b.HasIndex("Status");
 
                     b.HasIndex("TaskId");
-
-                    b.HasIndex("Status", "CreatedAt");
 
                     b.ToTable("ResearchFindings");
                 });
@@ -404,8 +403,6 @@ namespace ZettelWeb.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AgendaId");
-
-                    b.HasIndex("MotivationNoteId");
 
                     b.ToTable("ResearchTasks");
                 });
@@ -506,25 +503,12 @@ namespace ZettelWeb.Data.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("ZettelWeb.Models.ResearchAgenda", b =>
-                {
-                    b.HasOne("ZettelWeb.Models.Note", null)
-                        .WithMany()
-                        .HasForeignKey("TriggeredFromNoteId")
-                        .OnDelete(DeleteBehavior.SetNull);
-                });
-
             modelBuilder.Entity("ZettelWeb.Models.ResearchFinding", b =>
                 {
-                    b.HasOne("ZettelWeb.Models.Note", null)
-                        .WithMany()
-                        .HasForeignKey("AcceptedFleetingNoteId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("ZettelWeb.Models.ResearchTask", null)
                         .WithMany("Findings")
                         .HasForeignKey("TaskId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -535,11 +519,6 @@ namespace ZettelWeb.Data.Migrations
                         .HasForeignKey("AgendaId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("ZettelWeb.Models.Note", null)
-                        .WithMany()
-                        .HasForeignKey("MotivationNoteId")
-                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("ZettelWeb.Models.ContentGeneration", b =>

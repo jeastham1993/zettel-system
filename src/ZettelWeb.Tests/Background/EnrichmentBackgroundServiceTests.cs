@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ZettelWeb.Background;
 using ZettelWeb.Data;
 using ZettelWeb.Models;
+using ZettelWeb.Services;
 
 namespace ZettelWeb.Tests.Background;
 
@@ -19,6 +20,8 @@ public class EnrichmentBackgroundServiceTests
         services.AddDbContext<ZettelDbContext>(o =>
             o.UseInMemoryDatabase(dbName));
         services.AddSingleton<IEnrichmentQueue, ChannelEnrichmentQueue>();
+        // Use TestableUrlSafetyChecker to bypass real DNS resolution in unit tests
+        services.AddSingleton<IUrlSafetyChecker, TestableUrlSafetyChecker>();
 
         handler ??= new FakeHttpMessageHandler();
         services.AddHttpClient("Enrichment")
@@ -38,15 +41,16 @@ public class EnrichmentBackgroundServiceTests
             .Build();
     }
 
-    private static TestableEnrichmentService CreateService(
+    private static EnrichmentBackgroundService CreateService(
         ServiceProvider sp,
         FakeHttpMessageHandler? handler = null,
         IConfiguration? config = null)
     {
-        return new TestableEnrichmentService(
+        return new EnrichmentBackgroundService(
             sp.GetRequiredService<IEnrichmentQueue>(),
             sp,
             sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<IUrlSafetyChecker>(),
             NullLogger<EnrichmentBackgroundService>.Instance,
             config ?? BuildConfig());
     }
@@ -87,62 +91,62 @@ public class EnrichmentBackgroundServiceTests
         Assert.Equal("https://example.com", urls[0]);
     }
 
-    // --- HTML Extraction Tests ---
+    // --- HTML Extraction Tests (delegated to HtmlSanitiser) ---
 
     [Fact]
     public void ExtractTitle_ReturnsTitle()
     {
         var html = "<html><head><title>My Page Title</title></head><body>content</body></html>";
-        Assert.Equal("My Page Title", EnrichmentBackgroundService.ExtractTitle(html));
+        Assert.Equal("My Page Title", HtmlSanitiser.ExtractTitle(html));
     }
 
     [Fact]
     public void ExtractTitle_ReturnsNullWhenMissing()
     {
         var html = "<html><head></head><body>content</body></html>";
-        Assert.Null(EnrichmentBackgroundService.ExtractTitle(html));
+        Assert.Null(HtmlSanitiser.ExtractTitle(html));
     }
 
     [Fact]
     public void ExtractTitle_DecodesHtmlEntities()
     {
         var html = "<html><head><title>Tom &amp; Jerry</title></head></html>";
-        Assert.Equal("Tom & Jerry", EnrichmentBackgroundService.ExtractTitle(html));
+        Assert.Equal("Tom & Jerry", HtmlSanitiser.ExtractTitle(html));
     }
 
     [Fact]
     public void ExtractDescription_ReturnsMetaDescription()
     {
         var html = """<html><head><meta name="description" content="A great page"></head></html>""";
-        Assert.Equal("A great page", EnrichmentBackgroundService.ExtractDescription(html));
+        Assert.Equal("A great page", HtmlSanitiser.ExtractDescription(html));
     }
 
     [Fact]
     public void ExtractDescription_ReturnsOgDescription()
     {
         var html = """<html><head><meta property="og:description" content="OG desc"></head></html>""";
-        Assert.Equal("OG desc", EnrichmentBackgroundService.ExtractDescription(html));
+        Assert.Equal("OG desc", HtmlSanitiser.ExtractDescription(html));
     }
 
     [Fact]
     public void ExtractDescription_ReturnsNullWhenMissing()
     {
         var html = "<html><head></head><body>content</body></html>";
-        Assert.Null(EnrichmentBackgroundService.ExtractDescription(html));
+        Assert.Null(HtmlSanitiser.ExtractDescription(html));
     }
 
     [Fact]
     public void ExtractDescription_HandlesContentBeforeName()
     {
         var html = """<html><head><meta content="Reversed order" name="description"></head></html>""";
-        Assert.Equal("Reversed order", EnrichmentBackgroundService.ExtractDescription(html));
+        Assert.Equal("Reversed order", HtmlSanitiser.ExtractDescription(html));
     }
 
     [Fact]
     public void ExtractContentExcerpt_StripsHtmlAndReturnsText()
     {
         var html = "<html><body><p>Hello world</p><p>Second paragraph</p></body></html>";
-        var excerpt = EnrichmentBackgroundService.ExtractContentExcerpt(html);
+        var excerpt = HtmlSanitiser.ExtractContentExcerpt(html);
         Assert.NotNull(excerpt);
         Assert.Contains("Hello world", excerpt);
         Assert.Contains("Second paragraph", excerpt);
@@ -153,7 +157,7 @@ public class EnrichmentBackgroundServiceTests
     public void ExtractContentExcerpt_StripsScriptAndStyleTags()
     {
         var html = "<html><body><script>var x = 1;</script><p>Visible text</p><style>.x{}</style></body></html>";
-        var excerpt = EnrichmentBackgroundService.ExtractContentExcerpt(html);
+        var excerpt = HtmlSanitiser.ExtractContentExcerpt(html);
         Assert.NotNull(excerpt);
         Assert.Contains("Visible text", excerpt);
         Assert.DoesNotContain("var x", excerpt);
@@ -165,7 +169,7 @@ public class EnrichmentBackgroundServiceTests
     {
         var longText = new string('a', 1000);
         var html = $"<html><body><p>{longText}</p></body></html>";
-        var excerpt = EnrichmentBackgroundService.ExtractContentExcerpt(html);
+        var excerpt = HtmlSanitiser.ExtractContentExcerpt(html);
         Assert.NotNull(excerpt);
         Assert.Equal(500, excerpt.Length);
     }
@@ -174,7 +178,7 @@ public class EnrichmentBackgroundServiceTests
     public void ExtractContentExcerpt_ReturnsNullForEmptyBody()
     {
         var html = "<html><body></body></html>";
-        Assert.Null(EnrichmentBackgroundService.ExtractContentExcerpt(html));
+        Assert.Null(HtmlSanitiser.ExtractContentExcerpt(html));
     }
 
     // --- C3: HTML truncation for regex safety ---
@@ -185,7 +189,7 @@ public class EnrichmentBackgroundServiceTests
         // Title is at the start, should still be found
         var html = "<html><head><title>Found Title</title></head><body>"
             + new string('x', 200_000) + "</body></html>";
-        Assert.Equal("Found Title", EnrichmentBackgroundService.ExtractTitle(html));
+        Assert.Equal("Found Title", HtmlSanitiser.ExtractTitle(html));
     }
 
     [Fact]
@@ -194,7 +198,7 @@ public class EnrichmentBackgroundServiceTests
         // Title is way past 100KB - should not be found
         var html = "<html><head>" + new string('x', 200_000)
             + "<title>Hidden Title</title></head></html>";
-        Assert.Null(EnrichmentBackgroundService.ExtractTitle(html));
+        Assert.Null(HtmlSanitiser.ExtractTitle(html));
     }
 
     // --- ProcessNoteAsync Tests ---
@@ -471,86 +475,6 @@ public class EnrichmentBackgroundServiceTests
         Assert.Contains("20260214120002", ids);
     }
 
-    // --- C2: SSRF Protection Tests ---
-
-    [Fact]
-    public void IsPrivateAddress_RejectsLoopback()
-    {
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Loopback));
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.IPv6Loopback));
-    }
-
-    [Fact]
-    public void IsPrivateAddress_Rejects10Network()
-    {
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("10.0.0.1")));
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("10.255.255.255")));
-    }
-
-    [Fact]
-    public void IsPrivateAddress_Rejects172_16Network()
-    {
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("172.16.0.1")));
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("172.31.255.255")));
-        Assert.False(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("172.32.0.1")));
-    }
-
-    [Fact]
-    public void IsPrivateAddress_Rejects192_168Network()
-    {
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("192.168.0.1")));
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("192.168.255.255")));
-    }
-
-    [Fact]
-    public void IsPrivateAddress_RejectsLinkLocal()
-    {
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("169.254.0.1")));
-    }
-
-    [Fact]
-    public void IsPrivateAddress_AllowsPublicAddress()
-    {
-        Assert.False(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("8.8.8.8")));
-        Assert.False(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("93.184.216.34")));
-    }
-
-    [Fact]
-    public void IsPrivateAddress_RejectsIPv6UniqueLocal()
-    {
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("fc00::1")));
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("fd00::1")));
-    }
-
-    [Fact]
-    public void IsPrivateAddress_RejectsIPv6LinkLocal()
-    {
-        Assert.True(EnrichmentBackgroundService.IsPrivateAddress(IPAddress.Parse("fe80::1")));
-    }
-
-    [Fact]
-    public async Task IsUrlSafeAsync_RejectsNonHttpSchemes()
-    {
-        var dbName = Guid.NewGuid().ToString();
-        using var sp = BuildServiceProvider(dbName);
-        var service = CreateService(sp);
-
-        Assert.False(await service.IsUrlSafeAsync("ftp://example.com", CancellationToken.None));
-        Assert.False(await service.IsUrlSafeAsync("file:///etc/passwd", CancellationToken.None));
-        Assert.False(await service.IsUrlSafeAsync("javascript:alert(1)", CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task IsUrlSafeAsync_RejectsInvalidUrls()
-    {
-        var dbName = Guid.NewGuid().ToString();
-        using var sp = BuildServiceProvider(dbName);
-        var service = CreateService(sp);
-
-        Assert.False(await service.IsUrlSafeAsync("not-a-url", CancellationToken.None));
-        Assert.False(await service.IsUrlSafeAsync("", CancellationToken.None));
-    }
-
     // --- Queue Tests ---
 
     [Fact]
@@ -568,27 +492,121 @@ public class EnrichmentBackgroundServiceTests
     }
 }
 
-/// <summary>
-/// Testable enrichment service that returns a public IP for all DNS lookups,
-/// avoiding real DNS resolution in unit tests.
-/// </summary>
-public class TestableEnrichmentService : EnrichmentBackgroundService
+// --- C2: SSRF Protection Tests (now on UrlSafetyChecker directly) ---
+
+public class UrlSafetyCheckerTests
 {
-    public TestableEnrichmentService(
-        IEnrichmentQueue queue,
-        IServiceProvider serviceProvider,
-        IHttpClientFactory httpClientFactory,
-        ILogger<EnrichmentBackgroundService> logger,
-        IConfiguration configuration)
-        : base(queue, serviceProvider, httpClientFactory, logger, configuration)
+    [Fact]
+    public void IsPrivateAddress_RejectsLoopback()
     {
+        var checker = new UrlSafetyChecker();
+        Assert.True(checker.IsPrivateAddress(IPAddress.Loopback));
+        Assert.True(checker.IsPrivateAddress(IPAddress.IPv6Loopback));
     }
 
-    protected override Task<IPAddress[]> ResolveHostAsync(string host, CancellationToken cancellationToken)
+    [Fact]
+    public void IsPrivateAddress_Rejects10Network()
     {
-        // Return a public IP address to bypass SSRF check in unit tests
-        return Task.FromResult(new[] { IPAddress.Parse("93.184.216.34") });
+        var checker = new UrlSafetyChecker();
+        Assert.True(checker.IsPrivateAddress(IPAddress.Parse("10.0.0.1")));
+        Assert.True(checker.IsPrivateAddress(IPAddress.Parse("10.255.255.255")));
     }
+
+    [Fact]
+    public void IsPrivateAddress_Rejects172_16Network()
+    {
+        var checker = new UrlSafetyChecker();
+        Assert.True(checker.IsPrivateAddress(IPAddress.Parse("172.16.0.1")));
+        Assert.True(checker.IsPrivateAddress(IPAddress.Parse("172.31.255.255")));
+        Assert.False(checker.IsPrivateAddress(IPAddress.Parse("172.32.0.1")));
+    }
+
+    [Fact]
+    public void IsPrivateAddress_Rejects192_168Network()
+    {
+        var checker = new UrlSafetyChecker();
+        Assert.True(checker.IsPrivateAddress(IPAddress.Parse("192.168.0.1")));
+        Assert.True(checker.IsPrivateAddress(IPAddress.Parse("192.168.255.255")));
+    }
+
+    [Fact]
+    public void IsPrivateAddress_RejectsLinkLocal()
+    {
+        var checker = new UrlSafetyChecker();
+        Assert.True(checker.IsPrivateAddress(IPAddress.Parse("169.254.0.1")));
+    }
+
+    [Fact]
+    public void IsPrivateAddress_AllowsPublicAddress()
+    {
+        var checker = new UrlSafetyChecker();
+        Assert.False(checker.IsPrivateAddress(IPAddress.Parse("8.8.8.8")));
+        Assert.False(checker.IsPrivateAddress(IPAddress.Parse("93.184.216.34")));
+    }
+
+    [Fact]
+    public void IsPrivateAddress_RejectsIPv6UniqueLocal()
+    {
+        var checker = new UrlSafetyChecker();
+        Assert.True(checker.IsPrivateAddress(IPAddress.Parse("fc00::1")));
+        Assert.True(checker.IsPrivateAddress(IPAddress.Parse("fd00::1")));
+    }
+
+    [Fact]
+    public void IsPrivateAddress_RejectsIPv6LinkLocal()
+    {
+        var checker = new UrlSafetyChecker();
+        Assert.True(checker.IsPrivateAddress(IPAddress.Parse("fe80::1")));
+    }
+
+    [Fact]
+    public async Task IsUrlSafeAsync_RejectsNonHttpSchemes()
+    {
+        var checker = new TestableUrlSafetyChecker();
+        Assert.False(await checker.IsUrlSafeAsync("ftp://example.com", CancellationToken.None));
+        Assert.False(await checker.IsUrlSafeAsync("file:///etc/passwd", CancellationToken.None));
+        Assert.False(await checker.IsUrlSafeAsync("javascript:alert(1)", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task IsUrlSafeAsync_RejectsInvalidUrls()
+    {
+        var checker = new TestableUrlSafetyChecker();
+        Assert.False(await checker.IsUrlSafeAsync("not-a-url", CancellationToken.None));
+        Assert.False(await checker.IsUrlSafeAsync("", CancellationToken.None));
+    }
+}
+
+// --- HtmlSanitiser Tests ---
+
+public class HtmlSanitiserTests
+{
+    [Fact]
+    public void StripToPlainText_RemovesAllTagsAndDecodes()
+    {
+        var html = "<html><body><script>evil()</script><p>Hello &amp; World</p></body></html>";
+        var result = HtmlSanitiser.StripToPlainText(html);
+        Assert.Contains("Hello & World", result);
+        Assert.DoesNotContain("<", result);
+        Assert.DoesNotContain("evil", result);
+    }
+
+    [Fact]
+    public void StripToPlainText_CollapsesWhitespace()
+    {
+        var html = "<p>Word1</p>   <p>Word2</p>\n\t<p>Word3</p>";
+        var result = HtmlSanitiser.StripToPlainText(html);
+        Assert.DoesNotContain("  ", result); // no double spaces
+    }
+}
+
+/// <summary>
+/// Overrides DNS resolution to return a public IP, preventing real network calls in tests.
+/// </summary>
+public class TestableUrlSafetyChecker : UrlSafetyChecker
+{
+    protected override Task<IPAddress[]> ResolveHostAsync(string host, CancellationToken cancellationToken)
+        => Task.FromResult(new[] { IPAddress.Parse("93.184.216.34") });
 }
 
 /// <summary>
