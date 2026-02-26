@@ -25,6 +25,7 @@ of OpenAI, Ollama, or Amazon Bedrock.
   - [Content Generation (LLM)](#content-generation-llm)
   - [Content Generation Schedule](#content-generation-schedule)
   - [Publishing](#publishing-optional)
+  - [Research Agent](#research-agent-optional)
   - [Optional: Fleeting Note Capture](#optional-fleeting-note-capture)
   - [Optional: Observability](#optional-observability)
   - [Search Tuning](#search-tuning)
@@ -66,6 +67,10 @@ of OpenAI, Ollama, or Amazon Bedrock.
 - **Automated content generation** — Weekly pipeline that mines your
   knowledge graph, discovers connected note threads, and generates
   blog posts and social media drafts in your voice for human review
+- **Autonomous research agent** — Analyses KB gaps and rich clusters,
+  generates targeted search queries, fetches from Brave Search and
+  Arxiv, synthesises findings with an LLM instruction barrier, and
+  queues results as fleeting notes for inbox triage
 
 ---
 
@@ -541,6 +546,30 @@ Publishing__Publer__Accounts__0__Platform=linkedin
 
 Add more accounts by incrementing the index: `Publishing__Publer__Accounts__1__Id`, etc.
 
+### Research Agent (optional)
+
+The autonomous research agent analyses your knowledge base, generates
+targeted search queries, and queues findings for your review. It requires
+a [Brave Search API key](https://brave.com/search/api/) for web search;
+Arxiv search requires no key.
+
+```bash
+Research__BraveSearch__ApiKey=BSA...
+```
+
+The agent is triggered manually from the Knowledge Health dashboard or
+via `POST /api/research/trigger`. Findings appear at `/research` in the
+UI for accept (→ fleeting note) or dismiss.
+
+| Variable                              | Default | Description                                                          |
+| ------------------------------------- | ------- | -------------------------------------------------------------------- |
+| `Research__BraveSearch__ApiKey`       | (empty) | Brave Search API key. Web search is skipped if empty.                |
+| `Research__MaxFindingsPerRun`         | `5`     | Maximum findings created per research run                            |
+| `Research__DeduplicationThreshold`   | `0.85`  | Cosine similarity threshold — results above this are skipped as near-duplicates of existing notes |
+
+The agent reuses the same `ContentGeneration` LLM provider for agenda
+generation and synthesis. No additional LLM configuration is needed.
+
 ### Optional: Fleeting Note Capture
 
 Capture quick notes from email or Telegram. Requires the SQS capture
@@ -721,6 +750,16 @@ logic is identical in both cases — only the hosting differs.
 | `GET`  | `/api/kb-health/overview`                | Scorecard, orphans, clusters, unused seeds     |
 | `GET`  | `/api/kb-health/orphan/{id}/suggestions` | Semantic connection suggestions for an orphan  |
 | `POST` | `/api/kb-health/orphan/{id}/link`        | Insert a `[[wikilink]]` into an orphan note    |
+
+### Research Agent
+
+| Method | Endpoint                                      | Description                                                           |
+| ------ | --------------------------------------------- | --------------------------------------------------------------------- |
+| `POST` | `/api/research/trigger`                       | Analyse KB and generate a research agenda (returns agenda for review) |
+| `POST` | `/api/research/agenda/{agendaId}/approve`     | Approve agenda and start execution (202 — runs in background)         |
+| `GET`  | `/api/research/findings`                      | List pending findings awaiting review                                 |
+| `POST` | `/api/research/findings/{findingId}/accept`   | Accept a finding — creates a fleeting note                            |
+| `POST` | `/api/research/findings/{findingId}/dismiss`  | Dismiss a finding                                                     |
 
 ### Other
 
