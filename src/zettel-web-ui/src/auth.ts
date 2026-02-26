@@ -16,7 +16,8 @@
 
 const CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID as string
 const COGNITO_DOMAIN = import.meta.env.VITE_COGNITO_DOMAIN as string
-const REDIRECT_URI = `${window.location.origin}/callback`
+// Evaluated lazily so module import works in non-browser environments (e.g. tests)
+const getRedirectUri = () => `${window.location.origin}/callback`
 
 // ── PKCE helpers ─────────────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ export async function redirectToLogin(): Promise<void> {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
+    redirect_uri: getRedirectUri(),
     code_challenge: challenge,
     code_challenge_method: 'S256',
     scope: 'openid email',
@@ -95,7 +96,7 @@ export async function handleCallback(code: string): Promise<void> {
     body: new URLSearchParams({
       grant_type: 'authorization_code',
       client_id: CLIENT_ID,
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: getRedirectUri(),
       code,
       code_verifier: verifier,
     }),
