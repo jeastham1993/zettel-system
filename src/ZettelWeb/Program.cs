@@ -151,9 +151,21 @@ else
         new OpenAIClient(apiKey).GetEmbeddingClient(embeddingModel).AsIEmbeddingGenerator());
 }
 
-builder.Services.AddHostedService<EmbeddingBackgroundService>();
+// In Lambda, background services are replaced by separate Lambda functions.
+// The AWS_LAMBDA_FUNCTION_NAME env var is set automatically by the Lambda runtime.
+var isLambda = !string.IsNullOrEmpty(builder.Configuration["AWS_LAMBDA_FUNCTION_NAME"]);
+
+if (!isLambda)
+{
+    builder.Services.AddHostedService<EmbeddingBackgroundService>();
+}
+
 builder.Services.AddHttpClient("Enrichment");
-builder.Services.AddHostedService<EnrichmentBackgroundService>();
+
+if (!isLambda)
+{
+    builder.Services.AddHostedService<EnrichmentBackgroundService>();
+}
 
 // ── Content Generation LLM (IChatClient) ─────────────────────
 builder.Services.Configure<ContentGenerationOptions>(
@@ -188,7 +200,7 @@ builder.Services.AddHttpClient("Publer", c => c.Timeout = TimeSpan.FromSeconds(3
 builder.Services.AddKeyedScoped<IPublishingService, GitHubPublishingService>("blog");
 builder.Services.AddKeyedScoped<IPublishingService, PublerPublishingService>("social");
 
-if (string.Equals(
+if (!isLambda && string.Equals(
     builder.Configuration["ContentGeneration:Schedule:Enabled"], "true",
     StringComparison.OrdinalIgnoreCase))
 {
@@ -252,23 +264,22 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
+// Migrations and HNSW index creation are handled by the MigrationLambda,
+// which is invoked once by Terraform (aws_lambda_invocation) during deployment.
+// Running migrations at startup is unsafe in Lambda: multiple concurrent cold starts
+// would all attempt to acquire the migration lock simultaneously.
+// For local development and Docker Compose, the MigrationHandler can be invoked
+// directly: dotnet run --project ZettelWeb -- --migrate
+if (!isLambda)
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ZettelDbContext>();
     db.Database.Migrate();
 
-    // HNSW index for fast cosine similarity searches on embeddings.
-    // This depends on runtime config (embedding model dimensions vary), so it
-    // can't live in a static migration. The column is real[] so we cast to vector.
     var dimensions = app.Configuration.GetValue<int>("Embedding:Dimensions");
     if (dimensions > 0 && dimensions <= 4096)
     {
-        // SAFETY: ExecuteSqlRaw with string interpolation is used intentionally here.
-        // DDL statements like CREATE INDEX cannot accept parameterized values for
-        // type definitions (e.g. vector(1536)), so we must inline the dimension value.
-        // The `dimensions` variable is safe: it comes from validated configuration above
-        // (bounded to 1–4096 integer range), not from user input.
-#pragma warning disable EF1003 // Intentional raw SQL for DDL — see safety comment above
+#pragma warning disable EF1003 // Intentional raw SQL for DDL — see safety comment in MigrationHandler
         db.Database.ExecuteSqlRaw(
             $"CREATE INDEX IF NOT EXISTS idx_notes_embedding_hnsw " +
             $"ON \"Notes\" USING hnsw ((\"Embedding\"::vector({dimensions})) vector_cosine_ops) " +

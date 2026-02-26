@@ -5,6 +5,7 @@ import { HomePage } from '@/pages/home'
 import { NotePage } from '@/pages/note'
 import { EditorPage } from '@/pages/editor'
 import { NotFoundPage } from '@/pages/not-found'
+import { CallbackPage } from '@/pages/callback'
 
 const GraphPage = lazy(() =>
   import('./pages/graph').then((m) => ({ default: m.GraphPage })),
@@ -34,6 +35,8 @@ function LazyFallback() {
 }
 
 export const router = createBrowserRouter([
+  // Auth callback — outside AppShell, no auth required
+  { path: '/callback', element: <CallbackPage /> },
   {
     element: <AppShell />,
     children: [

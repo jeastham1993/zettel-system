@@ -1,6 +1,6 @@
 services:
   db:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: zettelweb
       POSTGRES_USER: zettel

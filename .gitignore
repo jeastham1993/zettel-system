@@ -444,3 +444,11 @@ __pycache__/
 .claude/*.local.json
 .claude/*.local
 .claude-reliability/
+
+# Terraform
+terraform/environments/prod/terraform.tfvars
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+.terraform.tfstate.lock.info

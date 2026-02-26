@@ -9,6 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Amazon.Lambda.Core" Version="2.*" />
+    <PackageReference Include="Amazon.Lambda.SQSEvents" Version="2.*" />
+    <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="2.*" />
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.*" />
+    <PackageReference Include="AWSSDK.SecretsManager" Version="4.*" />
     <PackageReference Include="AWSSDK.BedrockRuntime" Version="4.0.16" />
     <PackageReference Include="AWSSDK.Extensions.Bedrock.MEAI" Version="4.0.5.7" />
     <PackageReference Include="AWSSDK.SQS" Version="4.*" />

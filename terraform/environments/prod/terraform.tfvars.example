@@ -1,0 +1,23 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# NEVER commit terraform.tfvars — it is gitignored.
+
+aws_region = "eu-west-1"
+app_name   = "zettel"
+image_tag  = "latest"   # Overridden by CI with git SHA
+
+db_name            = "zettelweb"
+db_master_username = "zettel"
+db_master_password = "CHANGE_ME_strong_password_here"
+
+embedding_provider = "bedrock"
+embedding_model    = "amazon.titan-embed-text-v2:0"
+embedding_api_key  = ""   # Empty for Bedrock (uses Lambda IAM role)
+
+# Optional: SQS capture queue from ADR-004 CDK stack.
+# Leave empty if deploying fresh (direct webhooks work once API Gateway URL is public).
+capture_sqs_queue_url = ""
+capture_queue_arn     = ""
+
+content_generation_schedule = "cron(0 9 ? * MON *)"   # Mondays at 09:00 UTC
+
+alert_email = "you@example.com"
