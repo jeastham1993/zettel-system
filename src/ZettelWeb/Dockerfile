@@ -13,7 +13,7 @@ WORKDIR /app
 # Lambda Web Adapter — translates API Gateway HTTP API events into standard HTTP requests.
 # The application code is unchanged; only the hosting entrypoint changes.
 # See: https://github.com/awslabs/aws-lambda-web-adapter
-COPY --from=public.ecr.aws/awsguru/aws-lambda-web-adapter:0.9.0 \
+COPY --from=public.ecr.aws/awsguru/aws-lambda-web-adapter:0.9.1 \
      /lambda-adapter /opt/extensions/lambda-adapter
 
 ENV ASPNETCORE_URLS=http://+:8080
