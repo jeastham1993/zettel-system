@@ -164,12 +164,6 @@ public class ZettelDbContext : DbContext
                 .WithOne()
                 .HasForeignKey(t => t.AgendaId)
                 .OnDelete(DeleteBehavior.Cascade);
-            // I3: FK to Notes (nullable — note may be deleted; set null, don't block)
-            entity.HasOne<Note>()
-                .WithMany()
-                .HasForeignKey(e => e.TriggeredFromNoteId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<ResearchTask>(entity =>
@@ -188,17 +182,11 @@ public class ZettelDbContext : DbContext
                 .HasMaxLength(20)
                 .HasDefaultValue(ResearchTaskStatus.Pending);
             entity.HasIndex(e => e.AgendaId);
-            // I2: Restrict delete — findings should not be silently destroyed
+            // I2: Restrict delete — findings must be explicitly handled before a task can be deleted
             entity.HasMany(e => e.Findings)
                 .WithOne()
                 .HasForeignKey(f => f.TaskId)
                 .OnDelete(DeleteBehavior.Restrict);
-            // I3: FK to Notes (nullable)
-            entity.HasOne<Note>()
-                .WithMany()
-                .HasForeignKey(e => e.MotivationNoteId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<ResearchFinding>(entity =>
@@ -222,12 +210,6 @@ public class ZettelDbContext : DbContext
             entity.HasIndex(e => e.TaskId);
             // I9: composite index covers WHERE Status = 'Pending' ORDER BY CreatedAt DESC
             entity.HasIndex(e => new { e.Status, e.CreatedAt });
-            // I3: FK to Notes (nullable — accepted fleeting note should not be blocked from deletion)
-            entity.HasOne<Note>()
-                .WithMany()
-                .HasForeignKey(e => e.AcceptedFleetingNoteId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }
