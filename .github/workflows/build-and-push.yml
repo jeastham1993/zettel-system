@@ -99,36 +99,36 @@ jobs:
   # Pushes backend image to ECR for Lambda deployment.
   # Requires AWS_ROLE_ARN repository secret (output from terraform/modules/ecr).
   # Requires ECR_REPOSITORY_URL repository variable (output from terraform apply).
-  build-and-push-ecr:
-    needs: [test-backend, test-frontend]
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write   # Required for OIDC authentication to AWS
+  # build-and-push-ecr:
+  #   needs: [test-backend, test-frontend]
+  #   if: github.event_name != 'pull_request'
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     id-token: write   # Required for OIDC authentication to AWS
 
-    steps:
-      - uses: actions/checkout@v4
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+  #     - name: Configure AWS credentials via OIDC
+  #       uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+  #         aws-region: ${{ env.AWS_REGION }}
 
-      - name: Log in to Amazon ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
+  #     - name: Log in to Amazon ECR
+  #       id: ecr-login
+  #       uses: aws-actions/amazon-ecr-login@v2
 
-      - uses: docker/setup-buildx-action@v3
+  #     - uses: docker/setup-buildx-action@v3
 
-      - name: Build and push backend to ECR
-        uses: docker/build-push-action@v6
-        with:
-          context: ./src/ZettelWeb
-          push: true
-          tags: |
-            ${{ vars.ECR_REPOSITORY_URL }}:${{ github.sha }}
-            ${{ vars.ECR_REPOSITORY_URL }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+  #     - name: Build and push backend to ECR
+  #       uses: docker/build-push-action@v6
+  #       with:
+  #         context: ./src/ZettelWeb
+  #         push: true
+  #         tags: |
+  #           ${{ vars.ECR_REPOSITORY_URL }}:${{ github.sha }}
+  #           ${{ vars.ECR_REPOSITORY_URL }}:latest
+  #         cache-from: type=gha
+  #         cache-to: type=gha,mode=max
