@@ -131,7 +131,9 @@ public class ResearchAgentService : IResearchAgentService
                 Query = t.query,
                 SourceType = t.source,
                 Motivation = t.motivation,
-                MotivationNoteId = t.noteId == "none" ? null : t.noteId,
+                // LLMs often return titles or other text instead of a real 21-char note ID.
+                // Only persist if it looks like a valid ID; discard otherwise.
+                MotivationNoteId = t.noteId == "none" || t.noteId.Length > 21 ? null : t.noteId,
                 Status = ResearchTaskStatus.Pending,
             }).ToList()
         };
