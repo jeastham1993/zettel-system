@@ -1,6 +1,24 @@
 import { get, post, del, getBlob, put } from './client'
 import type { ContentGeneration, ContentPiece, VoiceExample, VoiceConfig, PagedResponse } from './types'
 
+// Schedule types
+
+export interface BlogScheduleSettings {
+  enabled: boolean
+  dayOfWeek: string
+  timeOfDay: string
+}
+
+export interface SocialScheduleSettings {
+  enabled: boolean
+  timeOfDay: string
+}
+
+export interface ScheduleSettings {
+  blog: BlogScheduleSettings
+  social: SocialScheduleSettings
+}
+
 // Content generation
 
 export function triggerGeneration(): Promise<ContentGeneration> {
@@ -88,4 +106,18 @@ export function getVoiceConfig(medium?: string): Promise<VoiceConfig[]> {
 
 export function updateVoiceConfig(data: { medium: string; styleNotes?: string }): Promise<VoiceConfig> {
   return put<VoiceConfig>('/api/content/voice/config', data)
+}
+
+// Schedule
+
+export function getSchedule(): Promise<ScheduleSettings> {
+  return get<ScheduleSettings>('/api/content/schedule')
+}
+
+export function updateBlogSchedule(data: BlogScheduleSettings): Promise<BlogScheduleSettings> {
+  return put<BlogScheduleSettings>('/api/content/schedule/blog', data)
+}
+
+export function updateSocialSchedule(data: SocialScheduleSettings): Promise<SocialScheduleSettings> {
+  return put<SocialScheduleSettings>('/api/content/schedule/social', data)
 }

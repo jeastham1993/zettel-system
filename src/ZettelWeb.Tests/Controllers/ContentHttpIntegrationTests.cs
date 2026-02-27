@@ -240,8 +240,11 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var schedule = await response.Content.ReadFromJsonAsync<ScheduleResponse>();
         Assert.NotNull(schedule);
-        Assert.Equal("Monday", schedule.DayOfWeek);
-        Assert.Equal("09:00", schedule.TimeOfDay);
+        Assert.NotNull(schedule.Blog);
+        Assert.Equal("Monday", schedule.Blog.DayOfWeek);
+        Assert.Equal("09:00", schedule.Blog.TimeOfDay);
+        Assert.NotNull(schedule.Social);
+        Assert.Equal("09:00", schedule.Social.TimeOfDay);
     }
 
     // ── Approve / Reject ──────────────────────────────────────────────────────
@@ -493,7 +496,9 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
 
     private record PagedGenerationsResponse(List<GenerationResponse> Items, int TotalCount);
 
-    private record ScheduleResponse(bool Enabled, string DayOfWeek, string TimeOfDay);
+    private record BlogScheduleResponse(bool Enabled, string DayOfWeek, string TimeOfDay);
+    private record SocialScheduleResponse(bool Enabled, string TimeOfDay);
+    private record ScheduleResponse(BlogScheduleResponse Blog, SocialScheduleResponse Social);
 
     private record ContentPieceResponse(
         string Id, string GenerationId, string Medium, string? Title, string Body,

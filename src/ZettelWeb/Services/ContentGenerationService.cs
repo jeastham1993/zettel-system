@@ -33,32 +33,43 @@ public class ContentGenerationService : IContentGenerationService
 
     public async Task<ContentGeneration> GenerateContentAsync(
         TopicCluster cluster,
+        IReadOnlyList<string>? mediums = null,
         CancellationToken cancellationToken = default)
     {
+        var generateBlog = mediums is null || mediums.Contains("blog", StringComparer.OrdinalIgnoreCase);
+        var generateSocial = mediums is null || mediums.Contains("social", StringComparer.OrdinalIgnoreCase);
+
         using var activity = ZettelTelemetry.ActivitySource.StartActivity("content.generate");
         activity?.SetTag("content.seed_id", cluster.SeedNoteId);
         activity?.SetTag("content.cluster_size", cluster.Notes.Count);
+        activity?.SetTag("content.generate_blog", generateBlog);
+        activity?.SetTag("content.generate_social", generateSocial);
 
         _logger.LogInformation(
-            "Generating content from cluster of {Count} notes (seed: {SeedId})",
-            cluster.Notes.Count, cluster.SeedNoteId);
-
-        // Load voice configuration
-        var blogVoice = await LoadVoiceAsync("blog", cancellationToken);
-        var socialVoice = await LoadVoiceAsync("social", cancellationToken);
+            "Generating content from cluster of {Count} notes (seed: {SeedId}, blog: {Blog}, social: {Social})",
+            cluster.Notes.Count, cluster.SeedNoteId, generateBlog, generateSocial);
 
         var noteContext = BuildNoteContext(cluster.Notes);
 
-        // Generate blog post
-        var (blogTitle, blogDescription, blogTags, blogBody) = await GenerateBlogPostAsync(
-            noteContext, blogVoice, cancellationToken);
+        // Blog post generation (weekly cadence)
+        string? blogTitle = null, blogDescription = null, blogBody = null, editorFeedback = null;
+        List<string>? blogTags = null;
+        if (generateBlog)
+        {
+            var blogVoice = await LoadVoiceAsync("blog", cancellationToken);
+            (blogTitle, blogDescription, blogTags, blogBody) = await GenerateBlogPostAsync(
+                noteContext, blogVoice, cancellationToken);
+            // Run editor review (best-effort — failure is non-fatal)
+            editorFeedback = await GenerateEditorFeedbackAsync(blogTitle, blogBody, cancellationToken);
+        }
 
-        // Run editor review on the blog post (best-effort — failure is non-fatal)
-        var editorFeedback = await GenerateEditorFeedbackAsync(blogTitle, blogBody, cancellationToken);
-
-        // Generate social posts
-        var socialPosts = await GenerateSocialPostsAsync(
-            noteContext, socialVoice, cancellationToken);
+        // Social post generation (daily cadence)
+        List<string> socialPosts = [];
+        if (generateSocial)
+        {
+            var socialVoice = await LoadVoiceAsync("social", cancellationToken);
+            socialPosts = await GenerateSocialPostsAsync(noteContext, socialVoice, cancellationToken);
+        }
 
         // Generate topic embedding for overlap detection
         float[]? topicEmbedding = null;
@@ -88,20 +99,23 @@ public class ContentGenerationService : IContentGenerationService
 
         var sequence = 1;
 
-        generation.Pieces.Add(new ContentPiece
+        if (generateBlog)
         {
-            Id = GenerateId(),
-            GenerationId = generationId,
-            Medium = "blog",
-            Title = blogTitle,
-            Description = blogDescription,
-            GeneratedTags = blogTags,
-            EditorFeedback = editorFeedback,
-            Body = blogBody,
-            Status = ContentPieceStatus.Draft,
-            Sequence = sequence++,
-            CreatedAt = DateTime.UtcNow,
-        });
+            generation.Pieces.Add(new ContentPiece
+            {
+                Id = GenerateId(),
+                GenerationId = generationId,
+                Medium = "blog",
+                Title = blogTitle,
+                Description = blogDescription,
+                GeneratedTags = blogTags ?? [],
+                EditorFeedback = editorFeedback,
+                Body = blogBody!,
+                Status = ContentPieceStatus.Draft,
+                Sequence = sequence++,
+                CreatedAt = DateTime.UtcNow,
+            });
+        }
 
         foreach (var post in socialPosts)
         {
@@ -132,8 +146,8 @@ public class ContentGenerationService : IContentGenerationService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Generated content {GenerationId}: 1 blog + {SocialCount} social posts",
-            generationId, socialPosts.Count);
+            "Generated content {GenerationId}: {BlogCount} blog + {SocialCount} social posts",
+            generationId, generateBlog ? 1 : 0, socialPosts.Count);
 
         activity?.SetTag("content.generation_id", generationId);
         activity?.SetTag("content.piece_count", generation.Pieces.Count);

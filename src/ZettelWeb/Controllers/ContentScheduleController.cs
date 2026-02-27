@@ -3,17 +3,20 @@ using Microsoft.Extensions.Configuration;
 
 namespace ZettelWeb.Controllers;
 
-/// <summary>Response DTO for schedule settings.</summary>
-public record ScheduleSettingsResponse(
-    bool Enabled,
-    string DayOfWeek,
-    string TimeOfDay);
+/// <summary>Schedule settings for a single content type.</summary>
+public record ContentTypeScheduleResponse(bool Enabled, string TimeOfDay);
 
-/// <summary>Request to update schedule settings.</summary>
-public record UpdateScheduleRequest(
-    bool Enabled,
-    string DayOfWeek,
-    string TimeOfDay);
+/// <summary>Blog schedule adds a DayOfWeek for its weekly cadence.</summary>
+public record BlogScheduleResponse(bool Enabled, string DayOfWeek, string TimeOfDay);
+
+/// <summary>Combined per-type schedule settings response.</summary>
+public record ScheduleSettingsResponse(BlogScheduleResponse Blog, ContentTypeScheduleResponse Social);
+
+/// <summary>Request to update the blog schedule.</summary>
+public record UpdateBlogScheduleRequest(bool Enabled, string DayOfWeek, string TimeOfDay);
+
+/// <summary>Request to update the social schedule.</summary>
+public record UpdateSocialScheduleRequest(bool Enabled, string TimeOfDay);
 
 /// <summary>Manages content generation schedule settings.</summary>
 [ApiController]
@@ -28,31 +31,44 @@ public class ContentScheduleController : ControllerBase
         _configuration = configuration;
     }
 
-    /// <summary>Get the current content generation schedule settings.</summary>
+    /// <summary>Get the current per-type content generation schedule settings.</summary>
     [HttpGet]
     [ProducesResponseType<ScheduleSettingsResponse>(200)]
     public IActionResult GetSchedule()
     {
-        var enabled = _configuration.GetValue<bool>("ContentGeneration:Schedule:Enabled");
-        var dayOfWeek = _configuration["ContentGeneration:Schedule:DayOfWeek"] ?? "Monday";
-        var timeOfDay = _configuration["ContentGeneration:Schedule:TimeOfDay"] ?? "09:00";
+        var blogEnabled = _configuration.GetValue<bool>("ContentGeneration:Schedule:Blog:Enabled");
+        var blogDay = _configuration["ContentGeneration:Schedule:Blog:DayOfWeek"] ?? "Monday";
+        var blogTime = _configuration["ContentGeneration:Schedule:Blog:TimeOfDay"] ?? "09:00";
 
-        return Ok(new ScheduleSettingsResponse(enabled, dayOfWeek, timeOfDay));
+        var socialEnabled = _configuration.GetValue<bool>("ContentGeneration:Schedule:Social:Enabled");
+        var socialTime = _configuration["ContentGeneration:Schedule:Social:TimeOfDay"] ?? "09:00";
+
+        return Ok(new ScheduleSettingsResponse(
+            Blog: new BlogScheduleResponse(blogEnabled, blogDay, blogTime),
+            Social: new ContentTypeScheduleResponse(socialEnabled, socialTime)));
     }
 
-    /// <summary>Update content generation schedule settings.</summary>
+    /// <summary>Update blog schedule settings.</summary>
     /// <remarks>
     /// Note: Changes via this endpoint are read-only reflections of appsettings.
     /// To persist schedule changes, update appsettings.json or environment variables.
     /// </remarks>
-    [HttpPut]
-    [ProducesResponseType<ScheduleSettingsResponse>(200)]
-    public IActionResult UpdateSchedule([FromBody] UpdateScheduleRequest request)
+    [HttpPut("blog")]
+    [ProducesResponseType<BlogScheduleResponse>(200)]
+    public IActionResult UpdateBlogSchedule([FromBody] UpdateBlogScheduleRequest request)
     {
-        // Schedule configuration is read from appsettings. This endpoint returns
-        // the requested values to confirm they were received. In production,
-        // schedule changes should be made via configuration (env vars, appsettings).
-        return Ok(new ScheduleSettingsResponse(
-            request.Enabled, request.DayOfWeek, request.TimeOfDay));
+        return Ok(new BlogScheduleResponse(request.Enabled, request.DayOfWeek, request.TimeOfDay));
+    }
+
+    /// <summary>Update social schedule settings.</summary>
+    /// <remarks>
+    /// Note: Changes via this endpoint are read-only reflections of appsettings.
+    /// To persist schedule changes, update appsettings.json or environment variables.
+    /// </remarks>
+    [HttpPut("social")]
+    [ProducesResponseType<ContentTypeScheduleResponse>(200)]
+    public IActionResult UpdateSocialSchedule([FromBody] UpdateSocialScheduleRequest request)
+    {
+        return Ok(new ContentTypeScheduleResponse(request.Enabled, request.TimeOfDay));
     }
 }

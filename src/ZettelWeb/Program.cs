@@ -212,11 +212,21 @@ builder.Services.AddHttpClient("Publer", c => c.Timeout = TimeSpan.FromSeconds(3
 builder.Services.AddKeyedScoped<IPublishingService, GitHubPublishingService>("blog");
 builder.Services.AddKeyedScoped<IPublishingService, PublerPublishingService>("social");
 
-if (!isLambda && string.Equals(
-    builder.Configuration["ContentGeneration:Schedule:Enabled"], "true",
-    StringComparison.OrdinalIgnoreCase))
+if (!isLambda)
 {
-    builder.Services.AddHostedService<ContentGenerationScheduler>();
+    if (string.Equals(
+        builder.Configuration["ContentGeneration:Schedule:Blog:Enabled"], "true",
+        StringComparison.OrdinalIgnoreCase))
+    {
+        builder.Services.AddHostedService<BlogContentScheduler>();
+    }
+
+    if (string.Equals(
+        builder.Configuration["ContentGeneration:Schedule:Social:Enabled"], "true",
+        StringComparison.OrdinalIgnoreCase))
+    {
+        builder.Services.AddHostedService<SocialContentScheduler>();
+    }
 }
 
 var sqsQueueUrl = builder.Configuration["Capture:SqsQueueUrl"];
