@@ -24,6 +24,7 @@ of OpenAI, Ollama, or Amazon Bedrock.
   - [Embedding Provider](#embedding-provider)
   - [Content Generation (LLM)](#content-generation-llm)
   - [Content Generation Schedule](#content-generation-schedule)
+  - [Telegram Notifications](#telegram-notifications-optional)
   - [Publishing](#publishing-optional)
   - [Research Agent](#research-agent-optional)
   - [Optional: Fleeting Note Capture](#optional-fleeting-note-capture)
@@ -64,9 +65,10 @@ of OpenAI, Ollama, or Amazon Bedrock.
 - **OpenTelemetry** — Built-in tracing and metrics instrumentation
 - **Graceful degradation** — Falls back to full-text search if the
   embedding API is unavailable
-- **Automated content generation** — Weekly pipeline that mines your
-  knowledge graph, discovers connected note threads, and generates
-  blog posts and social media drafts in your voice for human review
+- **Automated content generation** — Independently scheduled pipeline
+  that mines your knowledge graph: blog posts on a weekly cadence,
+  social media drafts daily, both generated in your voice for human
+  review before publishing
 - **Autonomous research agent** — Analyses KB gaps and rich clusters,
   generates targeted search queries, fetches from Brave Search and
   Arxiv, synthesises findings with an LLM instruction barrier, and
@@ -181,7 +183,7 @@ Browser → Cognito Hosted UI (login)
                                Aurora Serverless v2 (PostgreSQL + pgvector)
                                Bedrock (embeddings + content generation)
 EventBridge → EmbeddingWorker Lambda  (every 60s)
-EventBridge → ContentSchedule Lambda  (weekly cron)
+EventBridge → ContentSchedule Lambda  (blog: weekly, social: daily)
 SQS         → CaptureWorker Lambda    (email / Telegram capture)
 ```
 
@@ -475,25 +477,41 @@ Bedrock uses the ambient AWS credentials from the environment
 
 ### Content Generation Schedule
 
-The scheduler is **disabled by default**. Enable it to run automatically
-on a weekly cadence (UTC times).
+Blog posts and social media drafts run on **independent schedules** —
+both are disabled by default. Enable each separately (UTC times).
+
+#### Blog posts (weekly)
 
 ```bash
-CONTENTGENERATION__SCHEDULE__ENABLED=true
-CONTENTGENERATION__SCHEDULE__DAYOFWEEK=Monday
-CONTENTGENERATION__SCHEDULE__TIMEOFDAY=09:00
+ContentGeneration__Schedule__Blog__Enabled=true
+ContentGeneration__Schedule__Blog__DayOfWeek=Monday
+ContentGeneration__Schedule__Blog__TimeOfDay=09:00
 ```
 
-| Variable                                 | Default  | Description                            |
-| ---------------------------------------- | -------- | -------------------------------------- |
-| `ContentGeneration__Schedule__Enabled`   | `false`  | Set to `true` to enable the weekly run |
-| `ContentGeneration__Schedule__DayOfWeek` | `Monday` | Day to run (`Monday`–`Sunday`)         |
-| `ContentGeneration__Schedule__TimeOfDay` | `09:00`  | Time to run in UTC (`HH:mm`)           |
+| Variable                                        | Default  | Description                              |
+| ----------------------------------------------- | -------- | ---------------------------------------- |
+| `ContentGeneration__Schedule__Blog__Enabled`    | `false`  | Set to `true` to enable weekly blog runs |
+| `ContentGeneration__Schedule__Blog__DayOfWeek`  | `Monday` | Day to run (`Monday`–`Sunday`)           |
+| `ContentGeneration__Schedule__Blog__TimeOfDay`  | `09:00`  | Time to run in UTC (`HH:mm`)             |
 
-In the AWS deployment, the schedule is managed by an EventBridge rule
-and the `ContentGeneration__Schedule__*` variables are not used — set
-the `content_generation_schedule` Terraform variable instead
-(default: `cron(0 9 ? * MON *)`).
+#### Social posts (daily)
+
+```bash
+ContentGeneration__Schedule__Social__Enabled=true
+ContentGeneration__Schedule__Social__TimeOfDay=09:00
+```
+
+| Variable                                          | Default | Description                               |
+| ------------------------------------------------- | ------- | ----------------------------------------- |
+| `ContentGeneration__Schedule__Social__Enabled`    | `false` | Set to `true` to enable daily social runs |
+| `ContentGeneration__Schedule__Social__TimeOfDay`  | `09:00` | Time to run in UTC (`HH:mm`)              |
+
+In the AWS deployment, the schedule is managed by EventBridge rules.
+Create two separate rules pointing to the `ContentSchedule` Lambda —
+one with input `{"Medium":"blog"}` on a weekly cron and one with
+`{"Medium":"social"}` on a daily cron. The
+`ContentGeneration__Schedule__*` environment variables are not used
+in the AWS deployment.
 
 Generation can also be triggered manually at any time via
 `POST /api/content/generate`.
@@ -584,6 +602,36 @@ infrastructure (see [Webhook Ingestion](#webhook-ingestion-aws-sqs)).
 | `Capture__AllowedEmailSenders__0`     | Whitelisted email sender        |
 | `Capture__AllowedTelegramChatIds__0`  | Whitelisted Telegram chat ID    |
 | `Capture__TelegramBotToken`           | Telegram bot API token          |
+
+> **Note:** `Capture__TelegramBotToken` also enables outbound
+> [Telegram notifications](#telegram-notifications-optional). No
+> additional token is needed.
+
+### Telegram Notifications (optional)
+
+When `Capture__TelegramBotToken` is set, the app sends outbound
+notifications back to every chat ID in `Capture__AllowedTelegramChatIds`.
+No extra configuration is required — the same bot token is reused.
+
+**Notification events:**
+
+| Event | Message sent |
+|---|---|
+| Blog scheduler completes | `📝 1 blog post ready for review.` |
+| Social scheduler completes | `📱 3 social posts ready for review.` |
+| Scheduler skipped (no eligible notes) | `⚠️ Scheduled generation skipped: no eligible notes for topic discovery.` |
+| Scheduler run fails | `❌ Scheduled blog/social generation failed. Check logs for details.` |
+| Telegram capture received | `✅ Note saved.` (reply to the sender's chat) |
+
+Notifications are **best-effort**: if the Telegram API is unavailable
+the failure is logged at `Warning` level and the primary operation
+(generation or capture) is unaffected. When the bot token is absent a
+no-op notifier is registered automatically — no null-checks or
+conditional code required elsewhere.
+
+To receive notifications without enabling capture, set
+`Capture__TelegramBotToken` and add at least one chat ID to
+`Capture__AllowedTelegramChatIds`.
 
 ### Optional: Observability
 
@@ -730,8 +778,9 @@ logic is identical in both cases — only the hosting differs.
 | `GET`    | `/api/content/pieces/{id}/export`        | Download piece as a `.md` file                          |
 | `PUT`    | `/api/content/pieces/{id}/description`   | Update piece description                                |
 | `PUT`    | `/api/content/pieces/{id}/tags`          | Update piece tags                                       |
-| `GET`    | `/api/content/schedule`                  | Get schedule settings                                   |
-| `PUT`    | `/api/content/schedule`                  | Update schedule settings                                |
+| `GET`    | `/api/content/schedule`                  | Get per-type schedule settings (blog + social)          |
+| `PUT`    | `/api/content/schedule/blog`             | Update blog schedule settings                           |
+| `PUT`    | `/api/content/schedule/social`           | Update social schedule settings                         |
 
 ### Voice Configuration
 
