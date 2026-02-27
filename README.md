@@ -474,6 +474,7 @@ Bedrock uses the ambient AWS credentials from the environment
 | `ContentGeneration__MinClusterSize`    | `3`        | Min notes required; triggers retry if not met       |
 | `ContentGeneration__MaxSeedRetries`    | `3`        | Max seed selection retries for thin topics          |
 | `ContentGeneration__SemanticThreshold` | `0.75`     | Cosine similarity threshold for related notes       |
+| `ContentGeneration__SocialPostCount`   | `3`        | Number of social posts generated per scheduled run  |
 
 ### Content Generation Schedule
 

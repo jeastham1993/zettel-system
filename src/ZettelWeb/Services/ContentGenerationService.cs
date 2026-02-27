@@ -361,8 +361,10 @@ public class ContentGenerationService : IContentGenerationService
         CancellationToken cancellationToken)
     {
         var systemPrompt = BuildSocialSystemPrompt(voice);
+        var count = _options.SocialPostCount;
+        var postWord = count == 1 ? "post" : "posts";
         var userPrompt = $"""
-            Write 3-5 social media posts based on the following notes from my knowledge base.
+            Write {count} social media {postWord} based on the following notes from my knowledge base.
             Each post should stand alone and offer a distinct angle: an insight, a question,
             a hot take, or a key takeaway.
 

@@ -17,6 +17,9 @@ public class FakeChatClient : IChatClient
 
     public int CallCount => _callCount;
 
+    /// <summary>All message lists passed to GetResponseAsync, in call order.</summary>
+    public List<List<ChatMessage>> RecordedCalls { get; } = [];
+
     public FakeChatClient(
         string? blogResponse = null,
         string? editorResponse = null,
@@ -54,6 +57,7 @@ public class FakeChatClient : IChatClient
         ChatOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        RecordedCalls.Add(messages.ToList());
         var callIndex = Interlocked.Increment(ref _callCount);
 
         // Call 1 = blog post, call 2 = editor feedback, call 3+ = social posts

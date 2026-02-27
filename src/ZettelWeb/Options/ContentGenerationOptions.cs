@@ -26,4 +26,10 @@ public class ContentGenerationOptions
     public int MaxSeedRetries { get; set; } = 3;
     /// <summary>Semantic similarity threshold for related notes.</summary>
     public double SemanticThreshold { get; set; } = 0.75;
+
+    /// <summary>
+    /// Number of social media posts to generate per scheduled run.
+    /// Must be between 1 and 10. Defaults to 3.
+    /// </summary>
+    public int SocialPostCount { get; set; } = 3;
 }

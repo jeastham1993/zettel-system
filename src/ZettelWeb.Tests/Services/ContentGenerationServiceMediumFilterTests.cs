@@ -20,11 +20,14 @@ public class ContentGenerationServiceMediumFilterTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
-    private static ContentGenerationService CreateService(ZettelDbContext db, FakeChatClient? chat = null) =>
+    private static ContentGenerationService CreateService(
+        ZettelDbContext db,
+        FakeChatClient? chat = null,
+        int socialPostCount = 3) =>
         new(db,
             chat ?? new FakeChatClient(),
             new FakeEmbeddingGenerator([0.1f, 0.2f, 0.3f]),
-            Options.Create(new ContentGenerationOptions()),
+            Options.Create(new ContentGenerationOptions { SocialPostCount = socialPostCount }),
             NullLogger<ContentGenerationService>.Instance);
 
     private static TopicCluster MakeCluster()
@@ -60,6 +63,37 @@ public class ContentGenerationServiceMediumFilterTests
 
         Assert.All(result.Pieces, p => Assert.Equal("social", p.Medium));
         Assert.NotEmpty(result.Pieces);
+    }
+
+    [Fact]
+    public async Task GenerateContentAsync_SocialPostCount1_PromptRequestsSinglePost()
+    {
+        await using var db = CreateDbContext();
+        var chat = new FakeChatClient();
+        var service = CreateService(db, chat, socialPostCount: 1);
+        var cluster = MakeCluster();
+
+        await service.GenerateContentAsync(cluster, ["social"]);
+
+        // Social is the only call when mediums=["social"], so RecordedCalls[0] is the social call
+        var userMessage = chat.RecordedCalls[0]
+            .First(m => m.Role == ChatRole.User).Text!;
+        Assert.Contains("Write 1 social media post", userMessage);
+    }
+
+    [Fact]
+    public async Task GenerateContentAsync_SocialPostCount5_PromptRequestsFivePosts()
+    {
+        await using var db = CreateDbContext();
+        var chat = new FakeChatClient();
+        var service = CreateService(db, chat, socialPostCount: 5);
+        var cluster = MakeCluster();
+
+        await service.GenerateContentAsync(cluster, ["social"]);
+
+        var userMessage = chat.RecordedCalls[0]
+            .First(m => m.Role == ChatRole.User).Text!;
+        Assert.Contains("Write 5 social media posts", userMessage);
     }
 
     [Fact]
