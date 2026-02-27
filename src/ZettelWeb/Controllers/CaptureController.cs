@@ -18,15 +18,18 @@ public class CaptureController : ControllerBase
 {
     private readonly CaptureService _captureService;
     private readonly CaptureConfig _config;
+    private readonly ITelegramNotifier _telegramNotifier;
     private readonly ILogger<CaptureController> _logger;
 
     public CaptureController(
         CaptureService captureService,
         IOptions<CaptureConfig> config,
+        ITelegramNotifier telegramNotifier,
         ILogger<CaptureController> logger)
     {
         _captureService = captureService;
         _config = config.Value;
+        _telegramNotifier = telegramNotifier;
         _logger = logger;
     }
 
@@ -80,12 +83,13 @@ public class CaptureController : ControllerBase
             return Ok();
         }
 
-        var (content, isValid) = _captureService.ParseTelegramUpdate(payload);
+        var (content, isValid, chatId) = _captureService.ParseTelegramUpdate(payload);
 
         if (!isValid)
             return Ok();
 
         await _captureService.CaptureAsync(content, "telegram");
+        await _telegramNotifier.SendAsync(chatId, "✅ Note saved.");
 
         return Ok();
     }

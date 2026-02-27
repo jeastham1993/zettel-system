@@ -261,7 +261,7 @@ public class CaptureServiceTests : IDisposable
         }
         """).RootElement;
 
-        var (content, isValid) = svc.ParseTelegramUpdate(update);
+        var (content, isValid, _) = svc.ParseTelegramUpdate(update);
 
         Assert.True(isValid);
         Assert.Equal("Check this out https://example.com interesting article", content);
@@ -282,7 +282,7 @@ public class CaptureServiceTests : IDisposable
         }
         """).RootElement;
 
-        var (_, isValid) = svc.ParseTelegramUpdate(update);
+        var (_, isValid, _) = svc.ParseTelegramUpdate(update);
 
         Assert.False(isValid);
     }
@@ -297,7 +297,7 @@ public class CaptureServiceTests : IDisposable
         }
         """).RootElement;
 
-        var (_, isValid) = svc.ParseTelegramUpdate(update);
+        var (_, isValid, _) = svc.ParseTelegramUpdate(update);
 
         Assert.False(isValid);
     }
@@ -317,7 +317,7 @@ public class CaptureServiceTests : IDisposable
         }
         """).RootElement;
 
-        var (_, isValid) = svc.ParseTelegramUpdate(update);
+        var (_, isValid, _) = svc.ParseTelegramUpdate(update);
 
         Assert.False(isValid);
     }
@@ -336,7 +336,7 @@ public class CaptureServiceTests : IDisposable
         }
         """).RootElement;
 
-        var (_, isValid) = svc.ParseTelegramUpdate(update);
+        var (_, isValid, _) = svc.ParseTelegramUpdate(update);
 
         Assert.False(isValid);
     }
@@ -358,7 +358,7 @@ public class CaptureServiceTests : IDisposable
         }
         """).RootElement;
 
-        var (content, isValid) = svc.ParseTelegramUpdate(update);
+        var (content, isValid, _) = svc.ParseTelegramUpdate(update);
 
         Assert.True(isValid);
         Assert.Equal("Forwarded content to save", content);
@@ -622,7 +622,7 @@ public class CaptureServiceTests : IDisposable
         }
         """).RootElement;
 
-        var (content, isValid) = svc.ParseTelegramUpdate(update);
+        var (content, isValid, _) = svc.ParseTelegramUpdate(update);
         Assert.True(isValid);
 
         var note = await svc.CaptureAsync(content, "telegram");

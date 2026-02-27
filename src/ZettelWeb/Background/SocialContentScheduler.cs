@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ZettelWeb.Services;
 
 namespace ZettelWeb.Background;
 
@@ -16,7 +17,8 @@ public class SocialContentScheduler : ContentSchedulerBase
     public SocialContentScheduler(
         IServiceProvider serviceProvider,
         ILogger<SocialContentScheduler> logger,
-        IConfiguration configuration) : base(serviceProvider, logger)
+        IConfiguration configuration,
+        ITelegramNotifier notifier) : base(serviceProvider, logger, notifier)
     {
         var timeStr = configuration["ContentGeneration:Schedule:Social:TimeOfDay"] ?? "09:00";
         _scheduledTime = TimeOnly.TryParse(timeStr, out var time)
@@ -26,7 +28,7 @@ public class SocialContentScheduler : ContentSchedulerBase
 
     /// <summary>Constructor for unit testing — accepts schedule values directly.</summary>
     public SocialContentScheduler(TimeOnly scheduledTime)
-        : base(serviceProvider: null!, logger: null!)
+        : base(serviceProvider: null!, logger: null!, notifier: new NullTelegramNotifier())
     {
         _scheduledTime = scheduledTime;
     }

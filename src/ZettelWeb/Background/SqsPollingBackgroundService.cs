@@ -151,7 +151,7 @@ public class SqsPollingBackgroundService : BackgroundService
             }
             case "telegram":
             {
-                var (content, isValid) = captureService.ParseTelegramUpdate(payload);
+                var (content, isValid, _) = captureService.ParseTelegramUpdate(payload);
                 if (!isValid)
                 {
                     _logger.LogWarning(

@@ -15,6 +15,7 @@ public class CaptureControllerTests : IDisposable
 {
     private readonly FakeNoteService _noteService = new();
     private readonly FakeEnrichmentQueue _enrichmentQueue = new();
+    private readonly FakeTelegramNotifier _notifier = new();
     private readonly ZettelDbContext _db;
 
     public CaptureControllerTests()
@@ -50,6 +51,7 @@ public class CaptureControllerTests : IDisposable
         var controller = new CaptureController(
             service,
             Options.Create(config),
+            _notifier,
             NullLogger<CaptureController>.Instance);
 
         // Set up HttpContext so Request.Headers works
@@ -202,6 +204,51 @@ public class CaptureControllerTests : IDisposable
         var result = await controller.TelegramWebhook(payload);
 
         Assert.IsType<OkResult>(result);
+    }
+
+    [Fact]
+    public async Task TelegramWebhook_ValidCapture_SendsAcknowledgement()
+    {
+        var controller = CreateController();
+        WithHeaders(controller, new() { ["X-Telegram-Bot-Api-Secret-Token"] = "test-telegram-token" });
+        var payload = JsonDocument.Parse("""
+        {
+            "update_id": 1,
+            "message": {
+                "message_id": 1,
+                "chat": { "id": 123456789 },
+                "text": "Save this thought"
+            }
+        }
+        """).RootElement;
+
+        await controller.TelegramWebhook(payload);
+
+        var sent = Assert.Single(_notifier.SentMessages);
+        Assert.Equal(123456789L, sent.ChatId);
+        Assert.Equal("✅ Note saved.", sent.Message);
+    }
+
+    [Fact]
+    public async Task TelegramWebhook_InvalidCapture_DoesNotSendAcknowledgement()
+    {
+        var controller = CreateController();
+        WithHeaders(controller, new() { ["X-Telegram-Bot-Api-Secret-Token"] = "test-telegram-token" });
+        // Unknown chat ID — capture will be rejected
+        var payload = JsonDocument.Parse("""
+        {
+            "update_id": 1,
+            "message": {
+                "message_id": 1,
+                "chat": { "id": 999 },
+                "text": "Should be rejected"
+            }
+        }
+        """).RootElement;
+
+        await controller.TelegramWebhook(payload);
+
+        Assert.Empty(_notifier.SentMessages);
     }
 
     [Fact]

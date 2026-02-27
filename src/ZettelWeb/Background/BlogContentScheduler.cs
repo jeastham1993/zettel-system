@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ZettelWeb.Services;
 
 namespace ZettelWeb.Background;
 
@@ -17,7 +18,8 @@ public class BlogContentScheduler : ContentSchedulerBase
     public BlogContentScheduler(
         IServiceProvider serviceProvider,
         ILogger<BlogContentScheduler> logger,
-        IConfiguration configuration) : base(serviceProvider, logger)
+        IConfiguration configuration,
+        ITelegramNotifier notifier) : base(serviceProvider, logger, notifier)
     {
         var dayStr = configuration["ContentGeneration:Schedule:Blog:DayOfWeek"] ?? "Monday";
         _scheduledDay = Enum.TryParse<DayOfWeek>(dayStr, ignoreCase: true, out var day)
@@ -32,7 +34,7 @@ public class BlogContentScheduler : ContentSchedulerBase
 
     /// <summary>Constructor for unit testing — accepts schedule values directly.</summary>
     public BlogContentScheduler(DayOfWeek scheduledDay, TimeOnly scheduledTime)
-        : base(serviceProvider: null!, logger: null!)
+        : base(serviceProvider: null!, logger: null!, notifier: new NullTelegramNotifier())
     {
         _scheduledDay = scheduledDay;
         _scheduledTime = scheduledTime;

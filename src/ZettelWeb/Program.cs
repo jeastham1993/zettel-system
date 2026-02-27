@@ -212,6 +212,18 @@ builder.Services.AddHttpClient("Publer", c => c.Timeout = TimeSpan.FromSeconds(3
 builder.Services.AddKeyedScoped<IPublishingService, GitHubPublishingService>("blog");
 builder.Services.AddKeyedScoped<IPublishingService, PublerPublishingService>("social");
 
+// ── Telegram outbound notifications ───────────────────────
+var telegramToken = builder.Configuration["Capture:TelegramBotToken"];
+if (!string.IsNullOrEmpty(telegramToken))
+{
+    builder.Services.AddHttpClient("Telegram", c => c.Timeout = TimeSpan.FromSeconds(10));
+    builder.Services.AddSingleton<ITelegramNotifier, TelegramNotifier>();
+}
+else
+{
+    builder.Services.AddSingleton<ITelegramNotifier, NullTelegramNotifier>();
+}
+
 if (!isLambda)
 {
     if (string.Equals(

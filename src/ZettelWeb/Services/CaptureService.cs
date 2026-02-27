@@ -169,27 +169,27 @@ public partial class CaptureService
         return null;
     }
 
-    public (string content, bool isValid) ParseTelegramUpdate(JsonElement update)
+    public (string content, bool isValid, long chatId) ParseTelegramUpdate(JsonElement update)
     {
         if (!update.TryGetProperty("message", out var message))
-            return (string.Empty, false);
+            return (string.Empty, false, 0);
 
         if (!message.TryGetProperty("chat", out var chat) ||
             !chat.TryGetProperty("id", out var chatIdEl))
-            return (string.Empty, false);
+            return (string.Empty, false, 0);
 
         var chatId = chatIdEl.GetInt64();
         if (!IsAllowedTelegramChat(chatId))
-            return (string.Empty, false);
+            return (string.Empty, false, 0);
 
         string? text = null;
         if (message.TryGetProperty("text", out var textEl))
             text = textEl.GetString();
 
         if (string.IsNullOrWhiteSpace(text))
-            return (string.Empty, false);
+            return (string.Empty, false, 0);
 
-        return (text.Trim(), true);
+        return (text.Trim(), true, chatId);
     }
 
     public bool IsAllowedEmailSender(string fromAddress)
