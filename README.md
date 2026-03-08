@@ -27,6 +27,7 @@ of OpenAI, Ollama, or Amazon Bedrock.
   - [Telegram Notifications](#telegram-notifications-optional)
   - [Publishing](#publishing-optional)
   - [Research Agent](#research-agent-optional)
+  - [Voice Assistant](#voice-assistant-optional)
   - [Optional: Fleeting Note Capture](#optional-fleeting-note-capture)
   - [Optional: Observability](#optional-observability)
   - [Search Tuning](#search-tuning)
@@ -73,6 +74,9 @@ of OpenAI, Ollama, or Amazon Bedrock.
   generates targeted search queries, fetches from Brave Search and
   Arxiv, synthesises findings with an LLM instruction barrier, and
   queues results as fleeting notes for inbox triage
+- **Voice assistant** — Optional bi-directional voice interface using
+  Amazon Nova Sonic v2; speak a question, hear an answer synthesised
+  from your notes with cited sources shown in the UI
 
 ---
 
@@ -117,12 +121,13 @@ docker compose up -d
 
 This starts four services behind Traefik on port 9010:
 
-| Service    | Description                                                 |
-| ---------- | ----------------------------------------------------------- |
-| `traefik`  | Reverse proxy routing `/api/*` to backend, `/*` to frontend |
-| `backend`  | ASP.NET Core API (port 8080 internal)                       |
-| `frontend` | React SPA                                                   |
-| `db`       | PostgreSQL 16 with pgvector                                 |
+| Service         | Description                                                 |
+| --------------- | ----------------------------------------------------------- |
+| `traefik`       | Reverse proxy routing `/api/*` to backend, `/*` to frontend |
+| `backend`       | ASP.NET Core API (port 8080 internal)                       |
+| `frontend`      | React SPA                                                   |
+| `db`            | PostgreSQL 16 with pgvector                                 |
+| `voice-service` | Optional voice assistant — start with `--profile voice`     |
 
 The app is available at `http://localhost:9010`. The database is
 persisted in `./data/postgres`.
@@ -143,6 +148,7 @@ push to `main`:
 ```
 ghcr.io/jameseastham/zettel-system/backend:latest
 ghcr.io/jameseastham/zettel-system/frontend:latest
+ghcr.io/jameseastham/zettel-system/voice-service:latest
 ```
 
 Tags available: `latest` (main branch), `sha-<commit>`, and semantic
@@ -589,6 +595,91 @@ UI for accept (→ fleeting note) or dismiss.
 The agent reuses the same `ContentGeneration` LLM provider for agenda
 generation and synthesis. No additional LLM configuration is needed.
 
+### Voice Assistant (optional)
+
+The voice assistant is an **optional Python microservice** (`voice-service/`) that enables
+bi-directional voice navigation of your knowledgebase using Amazon Nova Sonic v2. It
+connects to your existing .NET API — no backend changes are required.
+
+#### Prerequisites
+
+- AWS Bedrock enabled in `us-east-1` with Nova Sonic v2 model access granted
+  (`amazon.nova-sonic-v2:0`)
+- Python 3.12+
+
+#### Local development (without Docker)
+
+```bash
+cd voice-service
+cp .env.example .env   # add AWS credentials and ZETTEL_API_URL
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+The frontend auto-detects the service: navigate to `/voice` in the app. If the service
+is not running, the page shows a friendly "unavailable" state — no errors elsewhere in
+the app.
+
+In dev, the frontend connects directly to `http://localhost:8000`. Set this in
+`src/zettel-web-ui/.env.local` to override the default Vite proxy:
+
+```bash
+VITE_VOICE_SERVICE_URL=http://localhost:8000
+```
+
+#### Docker Compose
+
+The voice service is profile-gated and does not affect existing deployments:
+
+```bash
+# Start the full stack including voice
+docker compose --profile voice up -d
+
+# Start without voice (default behaviour — unchanged)
+docker compose up -d
+```
+
+#### Configuration
+
+All values have sensible defaults. Only `ZETTEL_API_URL` and AWS credentials are required.
+
+| Variable | Default | Description |
+|---|---|---|
+| `ZETTEL_API_URL` | `http://localhost:5000` | Base URL of the .NET API |
+| `AWS_REGION` | `us-east-1` | AWS region (Nova Sonic is only in `us-east-1`) |
+| `AWS_ACCESS_KEY_ID` | — | AWS credentials |
+| `AWS_SECRET_ACCESS_KEY` | — | AWS credentials |
+| `BEDROCK_MODEL_ID` | `amazon.nova-sonic-v2:0` | Nova Sonic model ID |
+| `NOVA_SONIC_VOICE` | `matthew` | Voice for synthesised speech |
+| `NOVA_SONIC_VAD_SENSITIVITY` | `MEDIUM` | Server-side VAD: `LOW`, `MEDIUM`, or `HIGH` |
+| `NOVA_SONIC_MAX_TOKENS` | `2048` | Max output tokens per response |
+| `NOVA_SONIC_TEMPERATURE` | `0.7` | Sampling temperature |
+| `LOG_LEVEL` | `INFO` | Python log level: `DEBUG`, `INFO`, `WARNING` |
+
+#### How it works
+
+The voice service exposes a single WebSocket endpoint (`/ws`) that the browser connects
+to via the `/voice` page. Audio flows bi-directionally over one connection:
+
+- Browser → service: raw PCM audio frames (16 kHz, 16-bit mono), captured via Web Audio
+  API with voice activity detection
+- Service → browser: PCM audio frames (Nova Sonic synthesised speech) plus JSON events
+  (`citations`, `transcript`, `status`)
+
+When Nova Sonic decides it needs information, it fires tool calls handled server-side:
+
+```
+Browser mic → voice-service → Nova Sonic v2
+                 ↓ tool call
+              GET /api/search?q=... → .NET API (unchanged)
+              GET /api/notes/{id}  → .NET API (unchanged)
+                 ↓ answer
+Browser speaker ← voice-service ← Nova Sonic v2
+```
+
+Note titles retrieved during the conversation are displayed as clickable links in a
+sidebar while the spoken answer plays.
+
 ### Optional: Fleeting Note Capture
 
 Capture quick notes from email or Telegram. Requires the SQS capture
@@ -843,6 +934,10 @@ zettel-system/
       Lambda/            # Lambda handler entry points (AWS deployment)
     ZettelWeb.Tests/     # xUnit test project
     zettel-web-ui/       # React frontend (Vite + Tailwind)
+  voice-service/         # Optional Python voice assistant (Nova Sonic v2)
+    main.py              # FastAPI WebSocket server
+    agent.py             # Strands BidiAgent configuration
+    tools.py             # search_notes / get_note tool definitions
   terraform/             # AWS infrastructure (Terraform)
     modules/             # Reusable modules: networking, database, auth, api, workers, frontend
     environments/prod/   # Production environment entry point
