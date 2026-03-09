@@ -65,9 +65,23 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
         async def _receive_from_browser() -> None:
             """Forward binary PCM frames from the browser into Nova Sonic."""
+            frames = 0
             try:
                 while True:
                     data = await websocket.receive_bytes()
+                    frames += 1
+                    if frames == 1:
+                        logger.info(
+                            "first audio frame received (%d bytes)",
+                            len(data),
+                            extra={"session.id": session_id},
+                        )
+                    elif frames % 200 == 0:
+                        logger.debug(
+                            "audio frames forwarded: %d",
+                            frames,
+                            extra={"session.id": session_id},
+                        )
                     audio_b64 = base64.b64encode(data).decode("utf-8")
                     await agent.send(
                         BidiAudioInputEvent(
@@ -78,10 +92,17 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                         )
                     )
             except WebSocketDisconnect:
-                pass
+                logger.info(
+                    "browser disconnected after %d audio frames",
+                    frames,
+                    extra={"session.id": session_id},
+                )
             except Exception as exc:
                 logger.warning(
-                    "receive_from_browser error: %s", exc, extra={"session.id": session_id}
+                    "receive_from_browser error after %d frames: %s",
+                    frames,
+                    exc,
+                    extra={"session.id": session_id},
                 )
 
         async def _receive_from_agent() -> None:

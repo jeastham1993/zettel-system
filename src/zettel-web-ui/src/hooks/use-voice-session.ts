@@ -25,6 +25,9 @@ export interface UseVoiceSessionReturn {
   citations: Citation[]
   transcript: TranscriptEntry[]
   errorMessage: string | null
+  devices: MediaDeviceInfo[]
+  selectedDeviceId: string | null
+  setSelectedDeviceId: (id: string | null) => void
   connect: () => void
   disconnect: () => void
 }
@@ -52,6 +55,8 @@ export function useVoiceSession(): UseVoiceSessionReturn {
   const [citations, setCitations] = useState<Citation[]>([])
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
 
   const stateRef = useRef<VoiceState>(state)
   useEffect(() => {
@@ -74,6 +79,20 @@ export function useVoiceSession(): UseVoiceSessionReturn {
   const isSpeakingRef = useRef(false)
   const speechStartRef = useRef<number>(0)
   const silenceStartRef = useRef<number>(0)
+
+  // ── Device enumeration ────────────────────────────────────────────────────
+
+  const refreshDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return
+    const all = await navigator.mediaDevices.enumerateDevices()
+    setDevices(all.filter((d) => d.kind === 'audioinput'))
+  }, [])
+
+  useEffect(() => {
+    refreshDevices()
+    navigator.mediaDevices?.addEventListener('devicechange', refreshDevices)
+    return () => navigator.mediaDevices?.removeEventListener('devicechange', refreshDevices)
+  }, [refreshDevices])
 
   // ── Health check on mount ─────────────────────────────────────────────────
 
@@ -193,22 +212,30 @@ export function useVoiceSession(): UseVoiceSessionReturn {
     setCitations([])
     setTranscript([])
 
-    // Open AudioContext
-    const audioCtx = new AudioContext()
-    audioCtxRef.current = audioCtx
-
-    // Request microphone
+    // Request microphone — use selected device if set, with speech-optimised constraints
     let stream: MediaStream
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const audioConstraint: MediaTrackConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 16000,
+        ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
+      }
+      stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint })
+      // Re-enumerate now that permission is granted — labels will be populated
+      refreshDevices()
     } catch (err) {
       setState('error')
       setErrorMessage('Microphone access denied.')
-      audioCtx.close()
-      audioCtxRef.current = null
       return
     }
     streamRef.current = stream
+
+    // Open AudioContext at 16kHz — browser handles resampling natively, no manual downsampling needed
+    const audioCtx = new AudioContext({ sampleRate: 16000 })
+    if (audioCtx.state === 'suspended') await audioCtx.resume()
+    audioCtxRef.current = audioCtx
 
     // Open WebSocket
     const ws = new WebSocket(wsUrl())
@@ -282,7 +309,7 @@ export function useVoiceSession(): UseVoiceSessionReturn {
       }
     }
 
-    // ── VAD + microphone capture ───────────────────────────────────────────
+    // ── Microphone capture ────────────────────────────────────────────────
 
     const source = audioCtx.createMediaStreamSource(stream)
     const analyser = audioCtx.createAnalyser()
@@ -290,59 +317,20 @@ export function useVoiceSession(): UseVoiceSessionReturn {
     analyserRef.current = analyser
     source.connect(analyser)
 
-    const browserSampleRate = audioCtx.sampleRate
-    const TARGET_RATE = 16000
-    const BUFFER_SIZE = 4096
-
-    if (typeof audioCtx.createScriptProcessor !== 'function') {
-      setState('error')
-      setErrorMessage('Your browser does not support the required audio API. Please use a recent version of Chrome or Firefox.')
-      streamRef.current?.getTracks().forEach(t => t.stop())
-      audioCtx.close()
-      audioCtxRef.current = null
-      streamRef.current = null
-      wsRef.current?.close()
-      return
-    }
-    // TODO: migrate to AudioWorkletNode — ScriptProcessorNode is deprecated (https://developer.mozilla.org/en-US/docs/Web/API/ScriptProcessorNode)
-
-    const processor = audioCtx.createScriptProcessor(BUFFER_SIZE, 1, 1)
+    // AudioContext runs at 16kHz so no manual downsampling is needed
+    const processor = audioCtx.createScriptProcessor(512, 1, 1)
     processorRef.current = processor
     source.connect(processor)
-    // ScriptProcessorNode requires a destination connection to fire onaudioprocess,
-    // but we must not output the raw mic to speakers. Route through a muted gain node.
-    const silentSink = audioCtx.createGain()
-    silentSink.gain.value = 0
-    processor.connect(silentSink)
-    silentSink.connect(audioCtx.destination)
+    processor.connect(audioCtx.destination)
 
     processor.onaudioprocess = (e) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
 
-      const inputData = e.inputBuffer.getChannelData(0)
-
-      // Simple downsampling: average groups of samples
-      const ratio = browserSampleRate / TARGET_RATE
-      const outputLength = Math.floor(inputData.length / ratio)
-      const downsampled = new Float32Array(outputLength)
-
-      for (let i = 0; i < outputLength; i++) {
-        const start = Math.floor(i * ratio)
-        const end = Math.floor((i + 1) * ratio)
-        let sum = 0
-        for (let j = start; j < end; j++) {
-          sum += inputData[j]
-        }
-        downsampled[i] = sum / (end - start)
+      const float32 = e.inputBuffer.getChannelData(0)
+      const int16 = new Int16Array(float32.length)
+      for (let i = 0; i < float32.length; i++) {
+        int16[i] = Math.max(-1, Math.min(1, float32[i])) * 0x7fff
       }
-
-      // Convert to Int16
-      const int16 = new Int16Array(outputLength)
-      for (let i = 0; i < outputLength; i++) {
-        const clamped = Math.max(-1, Math.min(1, downsampled[i]))
-        int16[i] = clamped * 32767
-      }
-
       wsRef.current.send(int16.buffer)
     }
 
@@ -394,7 +382,7 @@ export function useVoiceSession(): UseVoiceSessionReturn {
     }
 
     animFrameRef.current = requestAnimationFrame(vadLoop)
-  }, [cleanup, playPcmFrame])
+  }, [cleanup, playPcmFrame, refreshDevices, selectedDeviceId])
 
   // ── Disconnect ────────────────────────────────────────────────────────────
 
@@ -408,6 +396,9 @@ export function useVoiceSession(): UseVoiceSessionReturn {
     citations,
     transcript,
     errorMessage,
+    devices,
+    selectedDeviceId,
+    setSelectedDeviceId,
     connect,
     disconnect,
   }

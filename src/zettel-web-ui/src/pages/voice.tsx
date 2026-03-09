@@ -80,7 +80,7 @@ function TranscriptBubble({ entry }: { entry: TranscriptEntry }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function VoicePage() {
-  const { state, citations, transcript, errorMessage, connect, disconnect } = useVoiceSession()
+  const { state, citations, transcript, errorMessage, devices, selectedDeviceId, setSelectedDeviceId, connect, disconnect } = useVoiceSession()
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -123,7 +123,27 @@ export function VoicePage() {
 
       {/* ── Idle / Connecting ── */}
       {(state === 'idle' || state === 'connecting') && (
-        <div className="flex flex-col items-center gap-4 py-16">
+        <div className="flex flex-col items-center gap-6 py-16">
+          {devices.length > 1 && (
+            <div className="flex flex-col items-center gap-1.5">
+              <label htmlFor="mic-select" className="text-xs text-muted-foreground">
+                Microphone
+              </label>
+              <select
+                id="mic-select"
+                value={selectedDeviceId ?? ''}
+                onChange={(e) => setSelectedDeviceId(e.target.value || null)}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">Default</option>
+                {devices.map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <button
             onClick={connect}
             disabled={state === 'connecting'}
