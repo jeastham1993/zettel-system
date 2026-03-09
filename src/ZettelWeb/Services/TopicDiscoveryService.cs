@@ -15,6 +15,11 @@ public class TopicDiscoveryOptions
     public int MinClusterSize { get; set; } = 3;
     public int MaxSeedRetries { get; set; } = 3;
     public double SemanticSimilarityThreshold { get; set; } = 0.75;
+    /// <summary>
+    /// Number of days before a used seed note becomes eligible again.
+    /// Prevents permanent pool exhaustion on small knowledge bases.
+    /// </summary>
+    public int SeedRecycleDays { get; set; } = 30;
 }
 
 public partial class TopicDiscoveryService : ITopicDiscoveryService
@@ -75,9 +80,10 @@ public partial class TopicDiscoveryService : ITopicDiscoveryService
 
     private async Task<Note?> SelectRandomSeedAsync(CancellationToken cancellationToken)
     {
-        var usedSeedIds = _db.UsedSeedNotes.Select(u => u.NoteId);
+        var recycleCutoff = DateTime.UtcNow.AddDays(-_options.SeedRecycleDays);
 
-        // Use raw SQL for ORDER BY RANDOM() which isn't directly supported by EF LINQ
+        // Use raw SQL for ORDER BY RANDOM() which isn't directly supported by EF LINQ.
+        // Notes used within the recycle window are excluded; older entries are eligible again.
         var eligibleIds = await _db.Database
             .SqlQuery<string>($"""
                 SELECT "Id" AS "Value"
@@ -85,7 +91,10 @@ public partial class TopicDiscoveryService : ITopicDiscoveryService
                 WHERE "Status" = 'Permanent'
                   AND "EmbedStatus" = 'Completed'
                   AND "Embedding" IS NOT NULL
-                  AND "Id" NOT IN (SELECT "NoteId" FROM "UsedSeedNotes")
+                  AND "Id" NOT IN (
+                      SELECT "NoteId" FROM "UsedSeedNotes"
+                      WHERE "UsedAt" >= {recycleCutoff}
+                  )
                 ORDER BY RANDOM()
                 LIMIT 1
                 """)
