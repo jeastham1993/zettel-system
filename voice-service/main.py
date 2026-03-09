@@ -130,7 +130,13 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 """Process events from Nova Sonic and forward to the browser."""
                 nonlocal cited_note_ids
 
+                logger.info("agent event loop started", extra={"session.id": session_id})
                 async for event in agent.receive():
+                    logger.debug(
+                        "agent event: %s",
+                        type(event).__name__,
+                        extra={"session.id": session_id},
+                    )
                     if isinstance(event, BidiResponseStartEvent):
                         await _send_json({"type": "status", "state": "thinking"})
 
@@ -177,6 +183,11 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                         telemetry.voice_errors.add(1, {"error.type": "nova_sonic"})
                         await _send_json({"type": "error", "message": message})
                         break  # session is in undefined state after a BidiErrorEvent; stop cleanly
+
+                logger.warning(
+                    "agent.receive() exhausted — no more events will arrive",
+                    extra={"session.id": session_id},
+                )
 
             try:
                 async with asyncio.TaskGroup() as tg:
