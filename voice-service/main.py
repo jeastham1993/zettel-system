@@ -12,6 +12,13 @@ from dotenv import load_dotenv
 
 load_dotenv()  # load .env before any other module reads env vars
 
+# Configure stdout logging BEFORE telemetry setup — basicConfig is a no-op if any
+# handler already exists on the root logger, so it must run first.
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+
 # Telemetry must be initialised before other imports so that get_tracer/get_meter
 # use the real provider rather than the default no-op proxy.
 from telemetry import setup_telemetry  # noqa: E402
@@ -37,11 +44,6 @@ from strands.experimental.bidi import (  # noqa: E402
 
 from agent import create_agent  # noqa: E402
 from tools import AUDIO_SAMPLE_RATE, extract_citations, get_note, search_notes  # noqa: E402, F401
-
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
 
 logger = logging.getLogger(__name__)
 
