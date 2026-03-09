@@ -85,28 +85,24 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
             async def _receive_from_browser() -> None:
                 """Forward binary PCM frames from the browser into Nova Sonic."""
+                import struct
                 frames = 0
                 try:
                     while True:
                         data = await websocket.receive_bytes()
                         frames += 1
-                        if frames == 1:
-                            import struct
+                        if frames % 50 == 0 or frames == 1:
                             samples = struct.unpack(f"{len(data) // 2}h", data)
                             peak = max(abs(s) for s in samples)
                             logger.info(
-                                "first audio frame received (%d bytes), peak amplitude: %d",
+                                "audio frame %d (%d bytes), peak amplitude: %d",
+                                frames,
                                 len(data),
                                 peak,
                                 extra={"session.id": session_id},
                             )
-                        elif frames % 200 == 0:
+                        if frames % 200 == 0:
                             telemetry.voice_audio_frames.add(200)
-                            logger.debug(
-                                "audio frames forwarded: %d",
-                                frames,
-                                extra={"session.id": session_id},
-                            )
                         audio_b64 = base64.b64encode(data).decode("utf-8")
                         await agent.send(
                             BidiAudioInputEvent(
