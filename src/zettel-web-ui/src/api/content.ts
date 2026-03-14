@@ -25,6 +25,10 @@ export function triggerGeneration(): Promise<ContentGeneration> {
   return post<ContentGeneration>('/api/content/generate')
 }
 
+export function triggerGenerationFromNote(noteId: string): Promise<ContentGeneration> {
+  return post<ContentGeneration>(`/api/content/generate/from-note/${encodeURIComponent(noteId)}`)
+}
+
 export function listGenerations(skip = 0, take = 20): Promise<PagedResponse<ContentGeneration>> {
   const params = new URLSearchParams({ skip: String(skip), take: String(take) })
   return get<PagedResponse<ContentGeneration>>(`/api/content/generations?${params}`)

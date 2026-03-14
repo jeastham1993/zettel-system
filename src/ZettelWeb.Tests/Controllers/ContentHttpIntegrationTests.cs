@@ -82,6 +82,16 @@ public class ContentHttpIntegrationTests : IClassFixture<ContentHttpIntegrationT
         return note!.Id;
     }
 
+    // ── POST /api/content/generate/from-note/{noteId} ────────────────────────
+
+    [Fact]
+    public async Task POST_GenerateFromNote_Returns404_WhenNoteNotFound()
+    {
+        var response = await _client.PostAsJsonAsync("/api/content/generate/from-note/doesnotexist", new { });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     // ── POST /api/content/generate ────────────────────────────────────────────
 
     [Fact]

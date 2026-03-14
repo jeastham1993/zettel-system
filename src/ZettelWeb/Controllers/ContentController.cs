@@ -94,6 +94,24 @@ public partial class ContentController : ControllerBase
             MapGeneration(generation));
     }
 
+    /// <summary>Trigger content generation using a specific note as the seed.</summary>
+    [HttpPost("generate/from-note/{noteId}")]
+    [ProducesResponseType<ContentGenerationResponse>(201)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> GenerateFromNote(string noteId)
+    {
+        var cluster = await _topicDiscovery.DiscoverTopicAsync(noteId);
+        if (cluster is null)
+            return NotFound(new { error = $"Note '{noteId}' not found or is not a Permanent note." });
+
+        var generation = await _contentGeneration.GenerateContentAsync(cluster);
+
+        return CreatedAtAction(
+            nameof(GetGeneration),
+            new { id = generation.Id },
+            MapGeneration(generation));
+    }
+
     /// <summary>Delete a content generation and all its pieces.</summary>
     [HttpDelete("generations/{id}")]
     [ProducesResponseType(204)]

@@ -64,6 +64,60 @@ public class TopicDiscoveryServiceTests : IAsyncLifetime
             UpdatedAt = DateTime.UtcNow,
         };
 
+    // ── DiscoverTopicAsync(seedNoteId) ────────────────────────────────────────
+
+    [Fact]
+    public async Task DiscoverTopicAsync_WithSeedNoteId_ReturnsClusterFromSpecifiedNote()
+    {
+        await using var db = CreateDbContext();
+        var note = MakePermanentNote("My specific note");
+        db.Notes.Add(note);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        var cluster = await service.DiscoverTopicAsync(note.Id);
+
+        Assert.NotNull(cluster);
+        Assert.Equal(note.Id, cluster.SeedNoteId);
+        Assert.Contains(cluster.Notes, n => n.Id == note.Id);
+    }
+
+    [Fact]
+    public async Task DiscoverTopicAsync_WithSeedNoteId_ReturnsNull_WhenNoteNotFound()
+    {
+        await using var db = CreateDbContext();
+        var service = CreateService(db);
+
+        var cluster = await service.DiscoverTopicAsync("nonexistent-id");
+
+        Assert.Null(cluster);
+    }
+
+    [Fact]
+    public async Task DiscoverTopicAsync_WithSeedNoteId_ReturnsNull_WhenNoteNotPermanent()
+    {
+        await using var db = CreateDbContext();
+        var note = new Note
+        {
+            Id = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}{Interlocked.Increment(ref _idSeq):D4}",
+            Title = "Fleeting note",
+            Content = "Some content",
+            Status = NoteStatus.Fleeting,
+            EmbedStatus = EmbedStatus.Completed,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+        db.Notes.Add(note);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        var cluster = await service.DiscoverTopicAsync(note.Id);
+
+        Assert.Null(cluster);
+    }
+
     // ── Seed recycling ────────────────────────────────────────────────────────
 
     [Fact]

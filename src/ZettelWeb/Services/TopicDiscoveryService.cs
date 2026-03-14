@@ -78,6 +78,31 @@ public partial class TopicDiscoveryService : ITopicDiscoveryService
         return null;
     }
 
+    public async Task<TopicCluster?> DiscoverTopicAsync(
+        string seedNoteId, CancellationToken cancellationToken = default)
+    {
+        using var activity = ZettelTelemetry.ActivitySource.StartActivity("topic.discover.seeded");
+        activity?.SetTag("topic.seed_id", seedNoteId);
+
+        var seed = await _db.Notes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(n => n.Id == seedNoteId, cancellationToken);
+
+        if (seed is null || seed.Status != NoteStatus.Permanent)
+        {
+            _logger.LogInformation("Seed note {SeedId} not found or not eligible", seedNoteId);
+            return null;
+        }
+
+        var cluster = await BuildClusterAsync(seed, cancellationToken);
+        var summary = BuildTopicSummary(cluster);
+
+        activity?.SetTag("topic.cluster_size", cluster.Count);
+        activity?.SetTag("topic.summary", summary);
+
+        return new TopicCluster(seed.Id, cluster, summary);
+    }
+
     private async Task<Note?> SelectRandomSeedAsync(CancellationToken cancellationToken)
     {
         var recycleCutoff = DateTime.UtcNow.AddDays(-_options.SeedRecycleDays);

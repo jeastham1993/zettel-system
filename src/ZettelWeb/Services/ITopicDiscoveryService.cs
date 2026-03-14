@@ -12,4 +12,10 @@ public record TopicCluster(
 public interface ITopicDiscoveryService
 {
     Task<TopicCluster?> DiscoverTopicAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Builds a topic cluster starting from a specific seed note.
+    /// Returns null if the note does not exist or is not a Permanent note.
+    /// </summary>
+    Task<TopicCluster?> DiscoverTopicAsync(string seedNoteId, CancellationToken cancellationToken = default);
 }
