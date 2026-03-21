@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { ArrowUpDown, ChevronLeft, ChevronRight, Tag, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -45,6 +45,58 @@ function sortNotes(notes: Note[], sort: SortOption): Note[] {
         return a.title.localeCompare(b.title)
     }
   })
+}
+
+function VirtualizedNoteList({ notes, onTagClick, itemHeight, maxHeight }: {
+  notes: Note[]
+  onTagClick: (tag: string) => void
+  itemHeight: number
+  maxHeight: number
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: Math.min(10, notes.length) })
+  
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    
+    const handleScroll = () => {
+      if (!container) return
+      const scrollTop = container.scrollTop
+      const startIndex = Math.floor(scrollTop / itemHeight)
+      const endIndex = Math.min(
+        startIndex + Math.ceil(maxHeight / itemHeight) + 1,
+        notes.length
+      )
+      setVisibleRange({ start: startIndex, end: endIndex })
+    }
+    
+    container.addEventListener('scroll', handleScroll)
+    handleScroll() // Initialize
+    
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [notes.length, itemHeight, maxHeight])
+  
+  const visibleNotes = notes.slice(visibleRange.start, visibleRange.end)
+  const paddingTop = visibleRange.start * itemHeight
+  const paddingBottom = Math.max(0, (notes.length - visibleRange.end) * itemHeight)
+  
+  return (
+    <div
+      ref={containerRef}
+      style={{ height: `${Math.min(maxHeight, notes.length * itemHeight)}px`, overflowY: 'auto', width: '100%' }}
+    >
+      <div style={{ paddingTop: `${paddingTop}px`, paddingBottom: `${paddingBottom}px` }}>
+        {visibleNotes.map((note) => (
+          <NoteListItem
+            key={note.id}
+            note={note}
+            onTagClick={onTagClick}
+          />
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export function NoteList() {
@@ -175,13 +227,12 @@ export function NoteList() {
       ) : (
         <>
           <div className="divide-y divide-border/50">
-            {sorted.map((note) => (
-              <NoteListItem
-                key={note.id}
-                note={note}
-                onTagClick={handleTagClick}
-              />
-            ))}
+            <VirtualizedNoteList
+              notes={sorted}
+              onTagClick={handleTagClick}
+              itemHeight={80}
+              maxHeight={600}
+            />
           </div>
           {(hasPrevious || hasNext) && (
             <div className="mt-4 flex items-center justify-between">
