@@ -14,6 +14,7 @@ public class SqsPollingBackgroundService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<SqsPollingBackgroundService> _logger;
     private readonly string _queueUrl;
+    private readonly int _pollingIntervalSeconds;
 
     public DateTime? LastPollUtc { get; private set; }
 
@@ -27,6 +28,9 @@ public class SqsPollingBackgroundService : BackgroundService
         _serviceProvider = serviceProvider;
         _logger = logger;
         _queueUrl = configuration["Capture:SqsQueueUrl"] ?? "";
+        _pollingIntervalSeconds = int.TryParse(configuration["Capture:SqsPollingIntervalSeconds"], out var interval)
+            ? interval
+            : 0;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -74,6 +78,9 @@ public class SqsPollingBackgroundService : BackgroundService
                             message.MessageId);
                     }
                 }
+
+                if (_pollingIntervalSeconds > 0)
+                    await Task.Delay(TimeSpan.FromSeconds(_pollingIntervalSeconds), stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
