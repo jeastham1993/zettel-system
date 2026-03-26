@@ -1,12 +1,19 @@
+networks:
+  zettel:
+    driver: bridge
+
 services:
   traefik:
     image: traefik:v3.4
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=zettel"
       - "--entrypoints.web.address=:80"
     ports:
       - "8080:80"
+    networks:
+      - zettel
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
@@ -16,6 +23,8 @@ services:
       - "18888:18888"
     environment:
       DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    networks:
+      - zettel
 
   backend:
     build:
@@ -60,6 +69,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - zettel
 
   voice-service:
     build:
@@ -83,6 +94,8 @@ services:
       backend:
         condition: service_healthy
     profiles: ["voice"]
+    networks:
+      - zettel
 
   frontend:
     build:
@@ -95,6 +108,8 @@ services:
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
     depends_on:
       - backend
+    networks:
+      - zettel
 
   db:
     image: pgvector/pgvector:pg17
@@ -109,6 +124,8 @@ services:
       interval: 2s
       timeout: 5s
       retries: 10
+    networks:
+      - zettel
 
 volumes:
   pgdata:
