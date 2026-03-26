@@ -9,6 +9,7 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.network=zettel"
+      - "--providers.docker.constraints=Label(`com.docker.compose.project`,`zettelkasten`)"
       - "--entrypoints.web.address=:80"
     ports:
       - "8080:80"
@@ -31,6 +32,8 @@ services:
       context: ./src/ZettelWeb
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - zettel
     environment:
       ConnectionStrings__DefaultConnection: "Host=db;Database=zettelweb;Username=zettel;Password=zettel_dev"
       Otel__Endpoint: "http://aspire-dashboard:18889"
@@ -69,8 +72,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    networks:
-      - zettel
 
   voice-service:
     build:
