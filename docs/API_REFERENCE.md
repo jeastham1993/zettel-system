@@ -90,6 +90,18 @@ Find notes that link to this note via `[[Title]]` wikilinks.
 ### `GET /api/notes/{id}/suggested-tags`
 AI-suggested tags derived from embedding similarity.
 
+### `GET /api/notes/sources/{sourceId}/references`
+Get all notes that reference a specific source.
+
+**Response:** `200 OK` — array of `Note` objects
+
+**Example:**
+```bash
+GET /api/notes/sources/20230101120000000/references
+```
+
+Returns all notes that have the specified source ID in their source field.
+
 ### `GET /api/notes/{id}/versions`
 List version history for a note.
 

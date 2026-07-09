@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router'
 import { NoteView } from '@/components/note-view'
 import { RelatedNotesSidebar } from '@/components/related-notes-sidebar'
+import { SourceReferences } from '@/components/source-references'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { useNote } from '@/hooks/use-notes'
@@ -56,7 +57,14 @@ export function NotePage() {
         )}
         {note && <NoteView note={note} />}
 
-        {/* Mobile related notes - collapsible section below content */}
+        {/* Mobile source references - collapsible section below content */}
+        {note && note.noteType === 'Source' && (
+          <div className="mt-8 lg:hidden">
+            <SourceReferences sourceId={note.id} />
+          </div>
+        )}
+
+      {/* Mobile related notes - collapsible section below content */}
         {note && (
           <div className="mt-8 border-t border-border/50 pt-4 lg:hidden">
             <button

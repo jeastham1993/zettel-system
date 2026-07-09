@@ -81,4 +81,7 @@ public class FakeNoteService : INoteService
         => Task.FromResult<IReadOnlyList<NoteVersion>>(new List<NoteVersion>());
     public Task<NoteVersion?> GetVersionAsync(string noteId, int versionId)
         => Task.FromResult<NoteVersion?>(null);
+
+    public Task<IReadOnlyList<Note>> GetNotesBySourceAsync(string sourceId)
+        => Task.FromResult<IReadOnlyList<Note>>(new List<Note>());
 }

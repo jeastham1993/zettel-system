@@ -375,6 +375,26 @@ describe('notes API contract', () => {
       expect(result).toEqual(['tag1', 'tag2', 'tag3'])
     })
   })
+
+  describe('getSourceReferences', () => {
+    it('returns a plain array of Note objects', async () => {
+      const notes = [
+        makeNote({ id: '1', title: 'First Reference' }),
+        makeNote({ id: '2', title: 'Second Reference' }),
+      ]
+      globalThis.fetch = mockFetch(notes)
+
+      const { getSourceReferences } = await import('@/api/notes')
+      const result = await getSourceReferences('20260215120000000')
+
+      expect(Array.isArray(result)).toBe(true)
+      expect(result).toHaveLength(2)
+      expect(result[0].id).toBe('1')
+      expect(result[0].title).toBe('First Reference')
+      expect(result[0]).toHaveProperty('tags')
+      expect(result[0]).toHaveProperty('noteType')
+    })
+  })
 })
 
 // --- Search API ---

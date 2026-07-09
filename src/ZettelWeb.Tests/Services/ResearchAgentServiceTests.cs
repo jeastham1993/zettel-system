@@ -134,6 +134,9 @@ public class ResearchAgentServiceTests
             => Task.FromResult<IReadOnlyList<NoteVersion>>([]);
         public Task<NoteVersion?> GetVersionAsync(string noteId, int versionId)
             => Task.FromResult<NoteVersion?>(null);
+
+        public Task<IReadOnlyList<Note>> GetNotesBySourceAsync(string sourceId)
+            => Task.FromResult<IReadOnlyList<Note>>(new List<Note>());
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

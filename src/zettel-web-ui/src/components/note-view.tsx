@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { EmbedStatusBadge } from './embed-status-badge'
 import { ConfirmDialog } from './confirm-dialog'
+import { SourceReferences } from './source-references'
 import { fullDate } from '@/lib/format'
 import { useDeleteNote } from '@/hooks/use-notes'
 import { useMutation } from '@tanstack/react-query'
@@ -154,6 +155,10 @@ export function NoteView({ note }: NoteViewProps) {
       </div>
 
       <Separator className="my-8" />
+
+      {note.noteType === 'Source' && (
+        <SourceReferences sourceId={note.id} />
+      )}
 
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" asChild>

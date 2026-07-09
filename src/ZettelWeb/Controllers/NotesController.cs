@@ -282,6 +282,16 @@ public class NotesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Get notes that reference a specific source.</summary>
+    [HttpGet("sources/{sourceId}/references")]
+    [ProducesResponseType<IReadOnlyList<Note>>(200)]
+    public async Task<IActionResult> GetSourceReferences(string sourceId)
+    {
+        var notes = await _noteService.GetNotesBySourceAsync(sourceId);
+
+        return Ok(notes);
+    }
+
     /// <summary>Get AI-suggested tags for a note.</summary>
     [HttpGet("{id}/suggested-tags")]
     [ProducesResponseType<IReadOnlyList<string>>(200)]

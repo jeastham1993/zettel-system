@@ -68,6 +68,10 @@ export function checkDuplicate(content: string): Promise<DuplicateCheckResult> {
   return post<DuplicateCheckResult>('/api/notes/check-duplicate', { content })
 }
 
+export function getSourceReferences(sourceId: string): Promise<Note[]> {
+  return get<Note[]>(`/api/notes/sources/${encodeURIComponent(sourceId)}/references`)
+}
+
 export function getSuggestedTags(noteId: string): Promise<string[]> {
   return get<string[]>(`/api/notes/${encodeURIComponent(noteId)}/suggested-tags`)
 }

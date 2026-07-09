@@ -37,6 +37,7 @@ public interface INoteService
     Task<Note?> MergeNoteAsync(string fleetingId, string targetId);
     Task<IReadOnlyList<string>> GetSuggestedTagsAsync(string noteId, int count = 5);
     Task<DuplicateCheckResult> CheckDuplicateAsync(string content);
+    Task<IReadOnlyList<Note>> GetNotesBySourceAsync(string sourceId);
     Task<IReadOnlyList<NoteVersion>> GetVersionsAsync(string noteId);
     Task<NoteVersion?> GetVersionAsync(string noteId, int versionId);
 }

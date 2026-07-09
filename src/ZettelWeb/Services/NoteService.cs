@@ -540,6 +540,14 @@ public partial class NoteService : INoteService
             .ToListAsync();
     }
 
+    public async Task<IReadOnlyList<Note>> GetNotesBySourceAsync(string sourceId)
+    {
+        return await _db.Notes
+            .AsNoTracking()
+            .Where(n => n.Source == sourceId)
+            .ToListAsync();
+    }
+
     public async Task<NoteVersion?> GetVersionAsync(string noteId, int versionId)
     {
         return await _db.NoteVersions
