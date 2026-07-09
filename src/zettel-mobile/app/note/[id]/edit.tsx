@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  StatusBar,
+  SafeAreaView,
 } from 'react-native'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { useNavigation } from '@react-navigation/native'
@@ -53,6 +55,10 @@ export default function NoteEditScreen() {
   contentRef.current = content
   tagsRef.current = tags
   hasChangesRef.current = hasChanges
+  
+  // Calculate safe area insets
+  const statusBarHeight = StatusBar.currentHeight || 0
+  const topInset = Platform.OS === 'ios' ? 50 : statusBarHeight + 10
 
   // Initialize form from note data (or restore draft)
   useEffect(() => {
@@ -274,6 +280,10 @@ export default function NoteEditScreen() {
       <Stack.Screen
         options={{
           title: isNew ? 'New Note' : 'Edit',
+          headerStyle: {
+            backgroundColor: bgColor,
+          },
+          headerTintColor: fg,
           headerLeft: () => (
             <Pressable onPress={handleCancel} hitSlop={8}>
               <Text style={[styles.headerButton, { color: muted }]}>Cancel</Text>
@@ -297,16 +307,17 @@ export default function NoteEditScreen() {
         }}
       />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={100}
-      >
-        <ScrollView
-          style={[styles.container, { backgroundColor: bgColor }]}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: bgColor }]}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : statusBarHeight + 20}
         >
+          <ScrollView
+            style={[styles.container, { backgroundColor: bgColor }]}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+          >
           {/* Title input */}
           <TextInput
             style={[styles.titleInput, { color: fg, borderBottomColor: borderColor }]}
@@ -379,11 +390,15 @@ export default function NoteEditScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+    </SafeAreaView>
     </>
   )
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },

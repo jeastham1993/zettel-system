@@ -26,7 +26,79 @@ function getBaseUrl(): string {
   if (!url) {
     throw new Error('Server URL not configured. Please set it in Settings.')
   }
+  
+  // Debug: log the exact URL being used
+  console.log('Using base URL:', url)
+  
+  // Remove trailing slashes only, preserve port and path
   return url.replace(/\/+$/, '')
+}
+
+// Add this helper function to test connectivity
+export async function testConnection(): Promise<{ success: boolean, error?: string }> {
+  try {
+    const baseUrl = getBaseUrl()
+    console.log('Testing connection to:', baseUrl)
+    
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+    
+    try {
+      // First try the health endpoint
+      const healthResponse = await fetch(`${baseUrl}/api/health`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      console.log('Health check response:', healthResponse.status)
+      
+      // If health check works, we're good
+      if (healthResponse.ok) {
+        return { success: true }
+      }
+      
+      // If health check fails but we can load notes, consider it a success
+      // This handles cases where /api/health doesn't exist but the server is working
+      console.log('Health endpoint failed, trying notes endpoint as fallback...')
+      
+      const notesResponse = await fetch(`${baseUrl}/api/notes?take=1`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      })
+      
+      if (notesResponse.ok) {
+        console.log('Notes endpoint works, considering connection successful')
+        return { success: true }
+      }
+      
+      const body = await healthResponse.text().catch(() => '')
+      return { 
+        success: false, 
+        error: `Health check failed (${healthResponse.status}) but notes endpoint also failed. Server may be misconfigured.`
+      }
+    } catch (error) {
+      clearTimeout(timeoutId)
+      console.error('Connection test failed:', error)
+      
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return { success: false, error: 'Connection timed out after 15 seconds' }
+      }
+      
+      return { success: false, error: error.message || 'Unknown connection error' }
+    }
+  } catch (error) {
+    console.error('Connection setup failed:', error)
+    return { success: false, error: error.message || 'Failed to setup connection test' }
+  }
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {

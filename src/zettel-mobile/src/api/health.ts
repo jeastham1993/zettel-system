@@ -1,7 +1,5 @@
-import { get, TimeoutError } from './client'
+import { get, TimeoutError, testConnection } from './client'
 import type { HealthReport } from './types'
-
-const HEALTH_TIMEOUT_MS = 5_000
 
 export function getHealth(): Promise<HealthReport> {
   return get<HealthReport>('/health')
@@ -10,24 +8,36 @@ export function getHealth(): Promise<HealthReport> {
 /**
  * Check health of an arbitrary server URL (used during setup before
  * the server URL is persisted to MMKV).
+ * Now uses the shared testConnection function for consistency.
  */
 export async function checkServerHealth(serverUrl: string): Promise<HealthReport> {
-  const url = serverUrl.replace(/\/+$/, '')
-  const endpoint = `${url}/health`
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS)
+  // Set the server URL temporarily for the test
+  const originalUrl = localStorage.getItem('server-url')
+  
   try {
-    const response = await fetch(endpoint, { signal: controller.signal })
+    // Store temporarily for testConnection to use
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('server-url', serverUrl)
+    }
+    
+    const result = await testConnection()
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Connection test failed')
+    }
+    
+    // If we got here, the connection worked - now get the actual health report
+    const response = await fetch(`${serverUrl.replace(/\/+$/, '')}/health`)
     if (!response.ok) {
       throw new Error(`Server returned ${response.status}`)
     }
     return response.json() as Promise<HealthReport>
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new TimeoutError(endpoint, HEALTH_TIMEOUT_MS)
-    }
-    throw err
   } finally {
-    clearTimeout(timeoutId)
+    // Restore original URL
+    if (originalUrl && typeof window !== 'undefined') {
+      localStorage.setItem('server-url', originalUrl)
+    } else if (typeof window !== 'undefined') {
+      localStorage.removeItem('server-url')
+    }
   }
 }

@@ -8,6 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  StatusBar,
+  SafeAreaView,
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as Haptics from 'expo-haptics'
@@ -45,6 +47,10 @@ export default function CaptureScreen() {
     }, 300)
     return () => clearTimeout(timer)
   }, [])
+  
+  // Calculate safe area insets
+  const statusBarHeight = StatusBar.currentHeight || 0
+  const topInset = Platform.OS === 'ios' ? 50 : statusBarHeight + 10
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -123,14 +129,19 @@ export default function CaptureScreen() {
   const canCapture = content.trim().length > 0 && !isSaving
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: themed(colors.background, scheme) }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}
-    >
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: themed(colors.border, scheme) }]}>
-        <TouchableOpacity onPress={handleCancel} hitSlop={12}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: themed(colors.background, scheme) }]}>
+      <KeyboardAvoidingView
+        style={styles.root}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+      {/* Header with proper padding */}
+      <View style={[styles.header, {
+        borderBottomColor: themed(colors.border, scheme),
+        paddingTop: Platform.OS === 'android' ? statusBarHeight + 8 : undefined
+      }]}
+      >
+        <TouchableOpacity onPress={handleCancel} hitSlop={12} style={styles.headerButton}>
           <X size={24} color={themed(colors.muted, scheme)} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: themed(colors.foreground, scheme) }]}>
@@ -249,10 +260,14 @@ export default function CaptureScreen() {
         </View>
       )}
     </KeyboardAvoidingView>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   root: {
     flex: 1,
   },
@@ -261,7 +276,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 56 : 16,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },

@@ -5,6 +5,8 @@ import {
   ScrollView,
   Pressable,
   ActivityIndicator,
+  StatusBar,
+  SafeAreaView,
 } from 'react-native'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Pencil, ArrowLeft, Link, FileText } from 'lucide-react-native'
@@ -20,6 +22,9 @@ export default function NoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const scheme = useTheme()
+  
+  // Calculate safe area insets
+  const statusBarHeight = StatusBar.currentHeight || 0
 
   const noteQuery = useNote(id)
   const relatedQuery = useRelatedNotes(id)
@@ -31,20 +36,24 @@ export default function NoteDetailScreen() {
 
   if (noteQuery.isLoading) {
     return (
-      <View style={[styles.container, styles.center, { backgroundColor: themed(colors.background, scheme) }]}>
-        <ActivityIndicator size="large" color={themed(colors.primary, scheme)} />
-      </View>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: themed(colors.background, scheme) }]}>
+        <View style={[styles.container, styles.center]}>
+          <ActivityIndicator size="large" color={themed(colors.primary, scheme)} />
+        </View>
+      </SafeAreaView>
     )
   }
 
   if (noteQuery.isError || !note) {
     return (
-      <View style={[styles.container, styles.center, { backgroundColor: themed(colors.background, scheme) }]}>
-        <FileText size={48} color={themed(colors.muted, scheme)} strokeWidth={1.5} />
-        <Text style={[styles.errorText, { color: themed(colors.muted, scheme) }]}>
-          Could not load this note.
-        </Text>
-      </View>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: themed(colors.background, scheme) }]}>
+        <View style={[styles.container, styles.center]}>
+          <FileText size={48} color={themed(colors.muted, scheme)} strokeWidth={1.5} />
+          <Text style={[styles.errorText, { color: themed(colors.muted, scheme) }]}>
+            Could not load this note.
+          </Text>
+        </View>
+      </SafeAreaView>
     )
   }
 
@@ -53,6 +62,10 @@ export default function NoteDetailScreen() {
       <Stack.Screen
         options={{
           title: note.title,
+          headerStyle: {
+            backgroundColor: themed(colors.background, scheme),
+          },
+          headerTintColor: themed(colors.foreground, scheme),
           headerRight: () => (
             <Pressable
               onPress={() => router.push(`/note/${id}/edit`)}
@@ -66,10 +79,11 @@ export default function NoteDetailScreen() {
         }}
       />
 
-      <ScrollView
-        style={[styles.container, { backgroundColor: themed(colors.background, scheme) }]}
-        contentContainerStyle={styles.content}
-      >
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: themed(colors.background, scheme) }]}>
+        <ScrollView
+          style={[styles.container, { backgroundColor: themed(colors.background, scheme) }]}
+          contentContainerStyle={styles.content}
+        >
         {/* Title */}
         <Text style={[styles.title, { color: themed(colors.foreground, scheme) }]}>
           {note.title}
@@ -164,11 +178,15 @@ export default function NoteDetailScreen() {
           </View>
         )}
       </ScrollView>
+      </SafeAreaView>
     </>
   )
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },

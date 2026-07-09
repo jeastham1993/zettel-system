@@ -8,12 +8,14 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Wifi } from 'lucide-react-native'
 import { colors } from '@/src/theme/colors'
 import { typography } from '@/src/theme/typography'
 import { useServer } from '@/src/hooks/use-server'
+import { testConnection } from '@/src/api/client'
 
 export default function ConnectScreen() {
   const router = useRouter()
@@ -29,23 +31,60 @@ export default function ConnectScreen() {
       return
     }
 
+    // Validate URL format
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      setError('URL must start with http:// or https://')
+      return
+    }
+
     setIsChecking(true)
     setError(null)
 
     try {
-      const ok = await checkConnection(trimmed)
-      if (ok) {
+      const result = await testConnection()
+      
+      if (result.success) {
         setServerUrl(trimmed)
         router.replace('/')
       } else {
-        setError('Could not connect to server. Check the URL and ensure the server is running.')
+        // Provide more specific error messages
+        if (result.error?.includes('timed out')) {
+          setError('Connection timed out. The server might be unreachable or too slow to respond.')
+        } else if (result.error?.includes('Network request failed')) {
+          setError('Network request failed. Check your internet connection and server URL.')
+        } else if (result.error?.includes('404')) {
+          setError('Server reached but /api/health endpoint not found. The server is working (notes load) but health check failed.')
+        } else if (result.error?.includes('Health check failed')) {
+          setError('Health check failed but server is working. Notes will load normally.')
+        } else if (result.error) {
+          setError(`Connection failed: ${result.error}`)
+        } else {
+          setError('Could not connect to server. Check the URL and ensure the server is running.')
+        }
+        
+        // Show alert with troubleshooting tips
+        Alert.alert(
+          'Connection Failed',
+          `The app couldn't connect to ${trimmed}.\n\n` +
+          'Troubleshooting tips:\n' +
+          '1. Make sure the URL starts with http:// or https://\n' +
+          '2. Verify the server is running on this device\n' +
+          '3. Check that port 9010 is open in your firewall\n' +
+          '4. Try accessing the URL in your browser first',
+          [
+            { text: 'Try Again', onPress: () => {} },
+            { text: 'Edit URL', style: 'cancel' }
+          ]
+        )
       }
-    } catch {
-      setError('Could not connect to server. Check the URL and ensure the server is running.')
+    } catch (error) {
+      console.error('Connection test error:', error)
+      setError(`Unexpected error: ${error.message}`)
+      Alert.alert('Error', `An unexpected error occurred: ${error.message}`)
     } finally {
       setIsChecking(false)
     }
-  }, [url, router, setServerUrl, checkConnection])
+  }, [url, router, setServerUrl])
 
   // Use light theme for the connect screen (first-launch)
   const scheme = 'light'
