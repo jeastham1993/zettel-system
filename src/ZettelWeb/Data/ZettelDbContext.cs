@@ -21,6 +21,8 @@ public class ZettelDbContext : DbContext
     public DbSet<ResearchAgenda> ResearchAgendas => Set<ResearchAgenda>();
     public DbSet<ResearchTask> ResearchTasks => Set<ResearchTask>();
     public DbSet<ResearchFinding> ResearchFindings => Set<ResearchFinding>();
+    public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -210,6 +212,38 @@ public class ZettelDbContext : DbContext
             entity.HasIndex(e => e.TaskId);
             // I9: composite index covers WHERE Status = 'Pending' ORDER BY CreatedAt DESC
             entity.HasIndex(e => new { e.Status, e.CreatedAt });
+        });
+
+        modelBuilder.Entity<ChatSession>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(21);
+            entity.Property(e => e.Title).IsRequired();
+            entity.Property(e => e.ContextNoteIds)
+                .HasColumnType("jsonb");
+            entity.Property(e => e.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(ChatSessionStatus.Active);
+            entity.HasMany(e => e.Messages)
+                .WithOne()
+                .HasForeignKey(m => m.SessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChatMessage>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(21);
+            entity.Property(e => e.SessionId).HasMaxLength(21).IsRequired();
+            entity.Property(e => e.Content).IsRequired();
+            entity.Property(e => e.ReferenceNoteIds)
+                .HasColumnType("jsonb");
+            entity.Property(e => e.Role)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+            entity.HasIndex(e => e.SessionId);
+            entity.HasIndex(e => e.CreatedAt);
         });
     }
 }

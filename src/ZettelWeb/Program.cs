@@ -120,6 +120,14 @@ builder.Services.AddScoped<ISearchService>(sp =>
         searchWeights,
         sp.GetRequiredService<ILogger<SearchService>>()));
 
+builder.Services.AddScoped<IChatService>(sp =>
+    new ChatService(
+        sp.GetRequiredService<ZettelDbContext>(),
+        sp.GetRequiredService<ISearchService>(),
+        sp.GetRequiredService<IChatClient>(),
+        sp.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>(),
+        sp.GetRequiredService<ILogger<ChatService>>()));
+
 var embeddingProvider = builder.Configuration["Embedding:Provider"] ?? "openai";
 var embeddingModel = builder.Configuration["Embedding:Model"] ?? "text-embedding-3-large";
 

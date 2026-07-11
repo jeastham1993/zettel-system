@@ -78,6 +78,38 @@ enqueued for background enrichment (title/description extraction).
 
 ---
 
+## Chat Pipeline
+
+```
+User Message ──▶ ChatController ──▶ ChatService
+                                      │
+                                      ▼
+                               BuildContextNotesAsync
+                                      │
+                                      ▼
+                              SearchService.SemanticSearch
+                                      │
+                                      ▼
+                              BuildPrompt + ConversationHistory
+                                      │
+                                      ▼
+                                  IChatClient
+                                      │
+                                      ▼
+                              GenerateAssistantResponse
+                                      │
+                                      ▼
+                              Save ChatMessage + References
+```
+
+The chat service:
+1. Receives user messages via the API
+2. Builds context by finding relevant notes using semantic search
+3. Constructs a prompt with conversation history and knowledge base context
+4. Calls the LLM via `IChatClient`
+5. Saves the assistant's response with references to source notes
+6. Updates the session context and embeddings for future conversations
+
 ## Content Generation Pipeline
 
 ```

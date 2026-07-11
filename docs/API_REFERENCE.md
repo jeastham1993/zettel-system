@@ -460,6 +460,78 @@ Insert a `[[TargetTitle]]` wikilink at the end of an orphan note's content. Sets
 
 ---
 
+## Chat
+
+Conversational interface to interact with your knowledge base.
+
+### `POST /api/chat/sessions`
+Create a new chat session.
+
+**Body:**
+```json
+{
+  "title": "string?",
+  "contextNoteIds": ["string"]
+}
+```
+
+**Response:** `201 Created` — chat session object.
+
+### `GET /api/chat/sessions`
+List all chat sessions.
+
+**Query params:** `status` (`Active` | `Archived`), `skip` (default 0), `take` (1–200, default 50)
+
+**Response:** `200 OK` — array of chat session objects.
+
+### `GET /api/chat/sessions/{sessionId}`
+Get a specific chat session.
+
+**Response:** `200 OK` — chat session object | `404 Not Found`
+
+### `PUT /api/chat/sessions/{sessionId}`
+Update a chat session.
+
+**Body:**
+```json
+{
+  "title": "string?",
+  "status": "Active" | "Archived"
+}
+```
+
+**Response:** `200 OK` — updated chat session | `404 Not Found`
+
+### `DELETE /api/chat/sessions/{sessionId}`
+Delete a chat session and all its messages.
+
+**Response:** `204 No Content` | `404 Not Found`
+
+### `POST /api/chat/sessions/{sessionId}/messages`
+Send a message to a chat session.
+
+**Body:**
+```json
+{
+  "content": "string",
+  "contextNoteIds": ["string"]
+}
+```
+
+**Response:** `200 OK` — assistant's response message with references.
+
+### `GET /api/chat/sessions/{sessionId}/messages`
+Get messages for a chat session.
+
+**Query params:** `skip` (default 0), `take` (1–200, default 50)
+
+**Response:** `200 OK` — array of chat messages with references.
+
+### `POST /api/chat/sessions/{sessionId}/regenerate`
+Regenerate the last assistant response.
+
+**Response:** `200 OK` — new assistant response message.
+
 ## Research
 
 Autonomous research agent that analyses KB health, generates search queries, and produces findings for human review.

@@ -153,6 +153,59 @@ export type ContentPieceStatus = 'Draft' | 'Approved' | 'Rejected'
 
 export type ContentMedium = 'blog' | 'social'
 
+export type ChatSessionStatus = 'Active' | 'Archived'
+
+export type ChatMessageRole = 'User' | 'Assistant' | 'System'
+
+export interface ChatSession {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  status: ChatSessionStatus
+  contextNoteIds: string[]
+  topicSummary: string | null
+}
+
+export interface ChatMessage {
+  id: string
+  sessionId: string
+  role: ChatMessageRole
+  content: string
+  createdAt: string
+  referenceNoteIds: string[]
+}
+
+export interface ChatReferenceNote {
+  id: string
+  title: string
+  relevance: number
+}
+
+export interface ChatMessageResponse {
+  id: string
+  sessionId: string
+  role: ChatMessageRole
+  content: string
+  createdAt: string
+  referenceNotes: ChatReferenceNote[]
+}
+
+export interface CreateChatSessionRequest {
+  title?: string
+  contextNoteIds?: string[]
+}
+
+export interface SendChatMessageRequest {
+  content: string
+  contextNoteIds?: string[]
+}
+
+export interface UpdateChatSessionRequest {
+  title?: string
+  status?: ChatSessionStatus
+}
+
 export interface SourceNoteInfo {
   id: string
   title: string

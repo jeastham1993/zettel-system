@@ -329,7 +329,7 @@ public class KbHealthService : IKbHealthService
             """;
 
         var response = await _chatClient.GetResponseAsync(
-            [new ChatMessage(ChatRole.User, prompt)],
+            [new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, prompt)],
             new ChatOptions { MaxOutputTokens = 1000, Temperature = 0.2f },
             cancellationToken);
 
@@ -382,7 +382,7 @@ public class KbHealthService : IKbHealthService
             """;
 
         var response = await _chatClient.GetResponseAsync(
-            [new ChatMessage(ChatRole.User, prompt)],
+            [new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, prompt)],
             new ChatOptions { MaxOutputTokens = 2000, Temperature = 0.3f },
             cancellationToken);
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Plus, Search, GitBranch, Inbox, Menu, Sparkles, Mic, Activity, Telescope, Settings2 } from 'lucide-react'
+import { Plus, Search, GitBranch, Inbox, Menu, Sparkles, Mic, Activity, Telescope, Settings2, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -153,6 +153,17 @@ export function Header({ onOpenSearch }: HeaderProps) {
             <TooltipContent>Research inbox</TooltipContent>
           </Tooltip>
 
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/chat" className="text-muted-foreground">
+                  <MessageSquare className="h-4 w-4" />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Chat with KB</TooltipContent>
+          </Tooltip>
+
           <ThemeToggle />
         </div>
 
@@ -234,6 +245,12 @@ export function Header({ onOpenSearch }: HeaderProps) {
                 <Link to="/research" className="gap-2" onClick={() => setMenuOpen(false)}>
                   <Telescope className="h-4 w-4" />
                   Research inbox
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/chat" className="gap-2" onClick={() => setMenuOpen(false)}>
+                  <MessageSquare className="h-4 w-4" />
+                  Chat with KB
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>

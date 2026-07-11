@@ -299,8 +299,8 @@ public class ContentGenerationService : IContentGenerationService
 
         var response = await _chatClient.GetResponseAsync(
             [
-                new ChatMessage(ChatRole.System, systemPrompt),
-                new ChatMessage(ChatRole.User, userPrompt)
+                new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemPrompt),
+                new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, userPrompt)
             ],
             new ChatOptions
             {
@@ -338,7 +338,7 @@ public class ContentGenerationService : IContentGenerationService
                 """;
 
             var response = await _chatClient.GetResponseAsync(
-                [new ChatMessage(ChatRole.User, userPrompt)],
+                [new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, userPrompt)],
                 new ChatOptions
                 {
                     MaxOutputTokens = 1000,
@@ -376,8 +376,8 @@ public class ContentGenerationService : IContentGenerationService
 
         var response = await _chatClient.GetResponseAsync(
             [
-                new ChatMessage(ChatRole.System, systemPrompt),
-                new ChatMessage(ChatRole.User, userPrompt)
+                new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemPrompt),
+                new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, userPrompt)
             ],
             new ChatOptions
             {

@@ -31,6 +31,9 @@ const KbHealthPage = lazy(() =>
 const ResearchPage = lazy(() =>
   import('./pages/research').then((m) => ({ default: m.ResearchPage })),
 )
+const ChatPage = lazy(() =>
+  import('./pages/chat').then((m) => ({ default: m.ChatPage })),
+)
 
 function LazyFallback() {
   return (
@@ -111,6 +114,22 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LazyFallback />}>
             <ResearchPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/chat',
+        element: (
+          <Suspense fallback={<LazyFallback />}>
+            <ChatPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/chat/:sessionId',
+        element: (
+          <Suspense fallback={<LazyFallback />}>
+            <ChatPage />
           </Suspense>
         ),
       },

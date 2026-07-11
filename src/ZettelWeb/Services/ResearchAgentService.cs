@@ -105,8 +105,8 @@ public class ResearchAgentService : IResearchAgentService
 
         var response = await _chatClient.GetResponseAsync(
             [
-                new ChatMessage(ChatRole.System, systemMessage),
-                new ChatMessage(ChatRole.User, userMessage)
+                new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemMessage),
+                new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, userMessage)
             ],
             new ChatOptions { MaxOutputTokens = 1000, Temperature = 0.3f },
             cancellationToken);
@@ -434,8 +434,8 @@ public class ResearchAgentService : IResearchAgentService
         {
             var response = await _chatClient.GetResponseAsync(
                 [
-                    new ChatMessage(ChatRole.System, systemMessage),
-                    new ChatMessage(ChatRole.User, userMessage)
+                    new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemMessage),
+                    new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, userMessage)
                 ],
                 new ChatOptions { MaxOutputTokens = 300, Temperature = 0.2f },
                 ct);

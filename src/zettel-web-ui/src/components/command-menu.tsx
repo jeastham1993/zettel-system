@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { Plus, Settings, RefreshCw, GitBranch, Inbox, Loader2 } from 'lucide-react'
+import { Plus, Settings, RefreshCw, GitBranch, Inbox, Loader2, MessageSquare } from 'lucide-react'
 import {
   CommandDialog,
   CommandEmpty,
@@ -119,6 +119,10 @@ export function CommandMenu({ open, onOpenChange, initialQuery }: CommandMenuPro
           <CommandItem onSelect={() => go('/graph')} className="gap-2">
             <GitBranch className="h-4 w-4" />
             Knowledge graph
+          </CommandItem>
+          <CommandItem onSelect={() => go('/chat')} className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Chat with knowledge base
           </CommandItem>
           <CommandItem onSelect={() => go('/settings')} className="gap-2">
             <Settings className="h-4 w-4" />
