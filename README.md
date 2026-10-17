@@ -4,6 +4,11 @@ A self-hostable Zettelkasten knowledge management app with AI-powered
 semantic search. Capture notes in the web UI, find connections between
 ideas using meaning-based search, and chat with your knowledge base.
 
+> **Note:** the AWS *deployment* (Lambda, Terraform, SQS) was removed in
+> v1.2.0 — Docker Compose is the only supported deployment. Bedrock
+> remains available as an *embedding/chat provider* via ambient AWS
+> credentials.
+
 Built with ASP.NET Core, React, PostgreSQL + pgvector, and OpenAI or
 Ollama (local, free).
 
@@ -189,17 +194,27 @@ EMBEDDING_MODEL=text-embedding-3-large
 EMBEDDING_API_KEY=sk-...
 ```
 
+#### Option C: Amazon Bedrock
+
+```bash
+EMBEDDING_PROVIDER=bedrock
+EMBEDDING_MODEL=amazon.titan-embed-text-v2:0
+EMBEDDING_BEDROCK_REGION=eu-west-1
+# Uses ambient AWS credentials (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
+```
+
 #### All Embedding Options
 
 | Variable                        | Default                  | Description                          |
 | ------------------------------- | ------------------------ | ------------------------------------ |
-| `Embedding__Provider`           | `ollama`                 | `openai` or `ollama`     |
+| `Embedding__Provider`           | `ollama`                 | `openai`, `ollama`, or `bedrock`     |
 | `Embedding__Model`              | `nomic-embed-text`       | Model name                           |
 | `Embedding__Dimensions`         | `768`                    | Vector dimensions (must match model) |
 | `Embedding__ApiKey`             | (empty)                  | OpenAI API key                       |
 | `Embedding__OllamaUrl`          | `http://localhost:11434` | Ollama endpoint                      |
 | `Embedding__MaxInputCharacters` | `4000`                   | Max text length before truncation    |
 | `Embedding__MaxRetries`         | `3`                      | Retry count for failed embeddings    |
+| `Embedding__BedrockRegion`       | (empty)                  | AWS region — Bedrock only            |
 
 ### Chat LLM
 
@@ -228,12 +243,22 @@ CONTENTGENERATION__MODEL=gpt-4o
 CONTENTGENERATION__APIKEY=sk-...
 ```
 
+#### Option C: Amazon Bedrock
+
+```bash
+CONTENTGENERATION__PROVIDER=bedrock
+CONTENTGENERATION__MODEL=anthropic.claude-3-5-sonnet-20241022-v2:0
+CONTENTGENERATION__REGION=eu-west-1
+# Uses ambient AWS credentials (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
+```
+
 | Variable                        | Default              | Description                                |
 | ------------------------------- | -------------------- | ------------------------------------------ |
-| `ContentGeneration__Provider`   | `ollama`             | `ollama` or `openai`                       |
+| `ContentGeneration__Provider`   | `ollama`             | `ollama`, `openai`, or `bedrock`           |
 | `ContentGeneration__Model`       | `llama3.1`           | Model identifier                           |
 | `ContentGeneration__ApiKey`     | (empty)              | OpenAI API key — required for `openai`     |
 | `ContentGeneration__OllamaUrl`  | = `Embedding__OllamaUrl` | Ollama endpoint — `ollama` provider only |
+| `ContentGeneration__Region`     | (empty)              | AWS region — `bedrock` provider only      |
 
 ### Research Agent (optional)
 

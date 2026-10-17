@@ -20,12 +20,16 @@ services:
       Embedding__ApiKey: "${EMBEDDING_API_KEY:-}"
       Embedding__Model: "${EMBEDDING_MODEL:-nomic-embed-text}"
       Embedding__OllamaUrl: "${EMBEDDING_OLLAMA_URL:-http://host.docker.internal:11434}"
+      Embedding__BedrockRegion: "${EMBEDDING_BEDROCK_REGION:-}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
       # Chat LLM: defaults to Ollama at the same URL as embeddings.
       # For OpenAI instead: CONTENTGENERATION__PROVIDER=openai, MODEL=gpt-4o, APIKEY=sk-...
       ContentGeneration__Provider: "${CONTENTGENERATION__PROVIDER:-ollama}"
       ContentGeneration__Model: "${CONTENTGENERATION__MODEL:-llama3.1}"
       ContentGeneration__OllamaUrl: "${EMBEDDING_OLLAMA_URL:-http://host.docker.internal:11434}"
       ContentGeneration__ApiKey: "${CONTENTGENERATION__APIKEY:-}"
+      ContentGeneration__Region: "${CONTENTGENERATION__REGION:-}"
       # CORS settings to allow access
       Cors__AllowedOrigins__0: "http://localhost:8081"
     labels:

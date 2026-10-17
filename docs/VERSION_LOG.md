@@ -2,6 +2,17 @@
 
 Last Updated: 2026-10-17
 
+## 1.2.2 - 2026-10-17
+
+### Added
+- Restored Amazon Bedrock as an embedding provider (`Embedding:Provider
+  = bedrock`, region via `Embedding:BedrockRegion`, ambient AWS
+  credentials) and as a chat LLM provider (`ContentGeneration:Provider
+  = bedrock`, region via `ContentGeneration:Region`). These provider
+  branches were removed in 1.2.0 along with the AWS deployment stack —
+  they are independent of it and remain useful for self-hosted
+  deployments that prefer Bedrock. Default providers remain Ollama.
+
 ## 1.2.1 - 2026-10-17
 
 ### Fixed

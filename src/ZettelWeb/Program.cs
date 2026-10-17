@@ -1,4 +1,5 @@
 
+using Amazon.BedrockRuntime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Npgsql;
@@ -134,6 +135,16 @@ if (string.Equals(embeddingProvider, "ollama", StringComparison.OrdinalIgnoreCas
     builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
         new OllamaApiClient(ollamaHttpClient, embeddingModel));
 }
+else if (string.Equals(embeddingProvider, "bedrock", StringComparison.OrdinalIgnoreCase))
+{
+    var bedrockRegion = builder.Configuration["Embedding:BedrockRegion"];
+    var bedrockClient = !string.IsNullOrEmpty(bedrockRegion)
+        ? new AmazonBedrockRuntimeClient(Amazon.RegionEndpoint.GetBySystemName(bedrockRegion))
+        : new AmazonBedrockRuntimeClient();
+    var dimensions = builder.Configuration.GetValue<int?>("Embedding:Dimensions");
+    builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
+        bedrockClient.AsIEmbeddingGenerator(embeddingModel, dimensions));
+}
 else
 {
     var apiKey = builder.Configuration["Embedding:ApiKey"] ?? "";
@@ -158,19 +169,21 @@ builder.Services.AddHostedService<EnrichmentBackgroundService>();
 // Note: config keys remain under the ContentGeneration: section for
 // backward compatibility with deployed environment configuration.
 // Providers: "ollama" (local, default — uses Ollama's OpenAI-compatible
-// endpoint; URL defaults to Embedding:OllamaUrl) or "openai" (cloud,
-// requires ContentGeneration:ApiKey).
+// endpoint; URL defaults to Embedding:OllamaUrl), "openai" (cloud,
+// requires ContentGeneration:ApiKey), or "bedrock" (uses ambient AWS
+// credentials; optional ContentGeneration:Region).
 var cgProvider = builder.Configuration["ContentGeneration:Provider"] ?? "ollama";
 var cgModel = builder.Configuration["ContentGeneration:Model"] ?? "llama3.1";
 
 if (string.Equals(cgProvider, "bedrock", StringComparison.OrdinalIgnoreCase))
 {
-    throw new InvalidOperationException(
-        "ContentGeneration:Provider 'bedrock' is no longer supported (AWS support was removed). " +
-        "Use 'ollama' (local) or 'openai' instead.");
+    var cgRegion = builder.Configuration["ContentGeneration:Region"];
+    var bedrockChatClient = !string.IsNullOrEmpty(cgRegion)
+        ? new AmazonBedrockRuntimeClient(Amazon.RegionEndpoint.GetBySystemName(cgRegion))
+        : new AmazonBedrockRuntimeClient();
+    builder.Services.AddSingleton<IChatClient>(bedrockChatClient.AsIChatClient(cgModel));
 }
-
-if (string.Equals(cgProvider, "ollama", StringComparison.OrdinalIgnoreCase))
+else if (string.Equals(cgProvider, "ollama", StringComparison.OrdinalIgnoreCase))
 {
     var chatOllamaUrl =
         (builder.Configuration["ContentGeneration:OllamaUrl"] is { Length: > 0 } cgOllamaUrl ? cgOllamaUrl : null)
