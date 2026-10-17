@@ -1,7 +1,7 @@
 # Design: Conversational Voice Interface
 
 Generated: 2026-03-07
-Status: Draft
+Status: Removed (2026-10) — the voice assistant was removed. Historical record only.
 
 ## Problem Statement
 

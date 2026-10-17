@@ -1,7 +1,7 @@
 # ADR-008: Content Regeneration Strategy
 
 Date: 2026-02-23
-Status: Accepted
+Status: Removed (2026-10) — content generation was removed. Kept as historical record.
 
 ---
 

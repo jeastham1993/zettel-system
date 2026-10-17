@@ -1,7 +1,7 @@
 # Design: AWS Serverless Deployment with Terraform
 
 Generated: 2026-02-26
-Status: Draft
+Status: Removed (2026-10) — the AWS deployment was removed. Historical record only.
 
 ---
 

@@ -71,8 +71,6 @@ public class OpenApiDocumentTests : IClassFixture<OpenApiDocumentTests.TestApp>
         Assert.True(paths.TryGetProperty("/api/discovery", out _), "Missing /api/discovery");
         Assert.True(paths.TryGetProperty("/api/import", out _), "Missing /api/import");
         Assert.True(paths.TryGetProperty("/api/export", out _), "Missing /api/export");
-        Assert.True(paths.TryGetProperty("/api/capture/email", out _), "Missing /api/capture/email");
-        Assert.True(paths.TryGetProperty("/api/capture/telegram", out _), "Missing /api/capture/telegram");
     }
 
     [Fact]

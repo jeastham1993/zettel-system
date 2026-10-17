@@ -1,12 +1,11 @@
 # Zettel-Web
 
 A self-hostable Zettelkasten knowledge management app with AI-powered
-semantic search. Capture notes from the web, email, or Telegram, find
-connections between ideas using meaning-based search, and chat with
-your knowledge base.
+semantic search. Capture notes in the web UI, find connections between
+ideas using meaning-based search, and chat with your knowledge base.
 
-Built with ASP.NET Core, React, PostgreSQL + pgvector, and your choice
-of OpenAI, Ollama, or Amazon Bedrock.
+Built with ASP.NET Core, React, PostgreSQL + pgvector, and OpenAI or
+Ollama (local, free).
 
 ![Alt text](./img/ui-screenshot.png "UI screenshot")
 
@@ -15,20 +14,15 @@ of OpenAI, Ollama, or Amazon Bedrock.
 ## Table of Contents
 
 - [Features](#features)
-- [Deployment Options](#deployment-options)
-  - [Option 1: Docker Compose (self-hosted)](#option-1-docker-compose-self-hosted)
-  - [Option 2: AWS Serverless (Terraform)](#option-2-aws-serverless-terraform)
+- [Deployment](#deployment)
+  - [Docker Compose (self-hosted)](#docker-compose-self-hosted)
 - [Configuration](#configuration)
   - [Required](#required)
   - [Embedding Provider](#embedding-provider)
-  - [Telegram Notifications](#telegram-notifications-optional)
   - [Chat LLM](#chat-llm)
   - [Research Agent](#research-agent-optional)
-  - [Voice Assistant](#voice-assistant-optional)
-  - [Optional: Fleeting Note Capture](#optional-fleeting-note-capture)
   - [Optional: Observability](#optional-observability)
   - [Search Tuning](#search-tuning)
-- [Webhook Ingestion (AWS SQS)](#webhook-ingestion-aws-sqs)
 - [Architecture](#architecture)
 - [API Reference](#api-reference)
 - [Running Tests](#running-tests)
@@ -44,8 +38,6 @@ of OpenAI, Ollama, or Amazon Bedrock.
 - **Zettelkasten workflow** — Permanent notes, fleeting notes (quick
   capture), structure notes (for organizing), and source notes (with
   bibliography metadata)
-- **Multiple capture methods** — Web UI, email (via AWS SES), or
-  Telegram bot
 - **Knowledge graph** — Visual graph of note relationships and
   backlinks
 - **Backlinks** — Wiki-style `[[Title]]` linking between notes with
@@ -67,29 +59,17 @@ of OpenAI, Ollama, or Amazon Bedrock.
   generates targeted search queries, fetches from Brave Search and
   Arxiv, synthesises findings with an LLM instruction barrier, and
   queues results as fleeting notes for inbox triage
-- **Voice assistant** — Optional bi-directional voice interface using
-  Amazon Nova Sonic v2; speak a question, hear an answer synthesised
-  from your notes with cited sources shown in the UI
 
 ---
 
-## Deployment Options
+## Deployment
 
-There are two supported deployment paths. Choose based on your needs:
+Zettel-Web is self-hosted via Docker Compose on a single server: the API
+and UI are served by Traefik on a single port, backed by PostgreSQL with
+pgvector. There is **no authentication built in** — run it on a trusted
+LAN or put your own auth in front.
 
-| | Docker Compose | AWS Serverless |
-|---|---|---|
-| Infrastructure | Single server / VPS | AWS Lambda + Aurora + CloudFront |
-| Cost | Fixed server cost | ~$13/month (pay-per-use) |
-| Setup time | 5 minutes | ~30 minutes |
-| Public URL | Manual (reverse proxy) | Yes (API Gateway + CloudFront) |
-| Authentication | None (add your own reverse proxy auth) | Cognito (included) |
-| Scales to zero | No | Yes |
-| Best for | LAN / private home lab | Personal, always-accessible |
-
----
-
-### Option 1: Docker Compose (self-hosted)
+### Docker Compose (self-hosted)
 
 The fastest way to run the full stack. Requires only Docker.
 
@@ -120,7 +100,6 @@ This starts four services behind Traefik on port 9010:
 | `backend`       | ASP.NET Core API (port 8080 internal)                       |
 | `frontend`      | React SPA                                                   |
 | `db`            | PostgreSQL 16 with pgvector                                 |
-| `voice-service` | Optional voice assistant — start with `--profile voice`     |
 
 The app is available at `http://localhost:9010`. The database is
 persisted in `./data/postgres`.
@@ -141,7 +120,6 @@ push to `main`:
 ```
 ghcr.io/jameseastham/zettel-system/backend:latest
 ghcr.io/jameseastham/zettel-system/frontend:latest
-ghcr.io/jameseastham/zettel-system/voice-service:latest
 ```
 
 Tags available: `latest` (main branch), `sha-<commit>`, and semantic
@@ -169,210 +147,11 @@ npm run dev
 
 ---
 
-### Option 2: AWS Serverless (Terraform)
-
-Deploys the application to AWS as a fully serverless stack using Lambda,
-Aurora Serverless v2, CloudFront, and Cognito. No server to maintain, and
-costs are roughly ~$13/month at personal usage.
-
-```
-Browser → Cognito Hosted UI (login)
-        → CloudFront → API Gateway → Lambda (ASP.NET Core)
-                                          ↓
-                               Aurora Serverless v2 (PostgreSQL + pgvector)
-                               Bedrock (embeddings + chat LLM)
-EventBridge → EmbeddingWorker Lambda  (every 60s)
-SQS         → CaptureWorker Lambda    (email / Telegram capture)
-```
-
-#### Prerequisites
-
-- [AWS CLI](https://aws.amazon.com/cli/) configured with an account
-- [Terraform](https://developer.hashicorp.com/terraform/install) ≥ 1.7
-- AWS Bedrock model access enabled for:
-  - `amazon.titan-embed-text-v2:0` (embeddings)
-  - `anthropic.claude-3-5-sonnet-20241022-v2:0` (chat / KB health LLM)
-
-#### Step 1 — Bootstrap the Terraform state backend
-
-Terraform stores its state in an S3 bucket with a DynamoDB lock table.
-Create these once manually before the first `terraform apply`:
-
-```bash
-# Replace <your-account-id> and choose a region
-aws s3api create-bucket \
-  --bucket zettel-terraform-state \
-  --region eu-west-1 \
-  --create-bucket-configuration LocationConstraint=eu-west-1
-
-aws s3api put-bucket-versioning \
-  --bucket zettel-terraform-state \
-  --versioning-configuration Status=Enabled
-
-aws dynamodb create-table \
-  --table-name zettel-terraform-locks \
-  --attribute-definitions AttributeName=LockID,AttributeType=S \
-  --key-schema AttributeName=LockID,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST \
-  --region eu-west-1
-```
-
-#### Step 2 — Configure variables
-
-```bash
-cd terraform/environments/prod
-cp terraform.tfvars.example terraform.tfvars
-```
-
-Edit `terraform.tfvars` with your values. The minimum required fields:
-
-```hcl
-db_master_password = "choose-a-strong-password"
-alert_email        = "you@example.com"
-image_tag          = "latest"   # CI overrides this with the git SHA
-```
-
-`terraform.tfvars` is gitignored and must never be committed.
-
-#### Step 3 — Deploy infrastructure
-
-```bash
-terraform init
-terraform apply
-```
-
-The first apply takes approximately 10–15 minutes (Aurora cluster
-provisioning is the longest step). At the end, Terraform prints the
-outputs you need for the next steps:
-
-```
-cloudfront_domain     = "https://d1234abcdef.cloudfront.net"
-api_gateway_url       = "https://abc123.execute-api.eu-west-1.amazonaws.com"
-ecr_backend_url       = "123456789.dkr.ecr.eu-west-1.amazonaws.com/zettel/backend"
-cognito_user_pool_id  = "eu-west-1_AbCdEfGhI"
-cognito_client_id     = "1a2b3c4d5e6f7g8h9i0j"
-cognito_domain        = "https://zettel-abc123.auth.eu-west-1.amazoncognito.com"
-```
-
-#### Step 4 — Set GitHub Actions secrets
-
-After the first `terraform apply`, configure the repository secrets so
-CI/CD can push backend images to ECR:
-
-```bash
-# Get the IAM role ARN for OIDC-based CI/CD authentication
-terraform output github_actions_role_arn
-```
-
-In your GitHub repository, set:
-
-| Secret / Variable | Value | Where to set |
-|---|---|---|
-| `AWS_ROLE_ARN` | Output of `github_actions_role_arn` | Repository secret |
-| `ECR_REPOSITORY_URL` | Output of `ecr_backend_url` | Repository variable |
-
-The `build-and-push-ecr` job in the CI workflow uses OIDC to assume
-this role — no long-lived AWS access keys are stored in GitHub.
-
-#### Step 5 — Create your user account
-
-Authentication is admin-only (no self-registration). Create your single
-user with the AWS CLI:
-
-```bash
-POOL_ID=$(terraform output -raw cognito_user_pool_id)
-
-aws cognito-idp admin-create-user \
-  --user-pool-id "$POOL_ID" \
-  --username you@example.com \
-  --temporary-password "Temp123!" \
-  --message-action SUPPRESS
-
-aws cognito-idp admin-set-user-password \
-  --user-pool-id "$POOL_ID" \
-  --username you@example.com \
-  --password "YourRealPassword123!" \
-  --permanent
-```
-
-#### Step 6 — Deploy the frontend
-
-The React frontend is deployed as static files to S3 + CloudFront.
-After the first CI run pushes a backend image, build and sync the frontend:
-
-```bash
-cd src/zettel-web-ui
-
-# Set the Cognito values from terraform outputs
-VITE_API_URL=$(cd ../../terraform/environments/prod && terraform output -raw api_gateway_url) \
-VITE_COGNITO_CLIENT_ID=$(cd ../../terraform/environments/prod && terraform output -raw cognito_client_id) \
-VITE_COGNITO_DOMAIN=$(cd ../../terraform/environments/prod && terraform output -raw cognito_domain) \
-npm run build
-
-# Sync to S3 and invalidate CloudFront
-BUCKET=$(cd ../../terraform/environments/prod && terraform output -raw s3_bucket_name)
-DIST_ID=$(cd ../../terraform/environments/prod && terraform output -raw cloudfront_distribution_id)
-
-aws s3 sync dist/ "s3://$BUCKET/" --delete
-aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
-```
-
-After this, navigate to the `cloudfront_domain` output URL, log in with
-your Cognito credentials, and the app is live.
-
-#### Updating the application
-
-On every push to `main`, GitHub Actions automatically:
-
-1. Runs all tests
-2. Pushes the backend image to both GHCR (for Docker Compose users) and ECR
-3. Runs `MigrationLambda` via `terraform apply` to apply any new migrations
-4. Updates the API Lambda with the new image
-
-To deploy manually:
-
-```bash
-# Push a new image to ECR (CI does this automatically)
-aws ecr get-login-password --region eu-west-1 | docker login ...
-
-# Apply infrastructure changes and re-invoke the migration Lambda
-cd terraform/environments/prod
-terraform apply -var="image_tag=<new-git-sha>"
-```
-
-The frontend must be re-deployed separately after a Vite build whenever
-the frontend source changes (it is not included in the Lambda image).
-
-#### Cost breakdown
-
-At personal usage (~100 API requests/day):
-
-| Resource | Monthly cost |
-|---|---|
-| Lambda (API + workers) | ~$0 (within free tier) |
-| API Gateway HTTP API | ~$0 (within free tier) |
-| Aurora Serverless v2 (0.5 ACU min) | ~$4 |
-| VPC endpoints × 6 | ~$7 |
-| S3 + CloudFront | ~$1 |
-| Cognito (< 50,000 MAU) | $0 |
-| CloudWatch logs + alarms | ~$1 |
-| **Total** | **~$13/month** |
-
-#### Aurora scaling note
-
-Aurora is configured with `min_capacity = 0.5` ACU (not zero). Setting
-min to zero would enable true scale-to-zero, but resuming from 0 ACU
-takes 15–30 seconds — enough to make the first page load feel broken.
-At 0.5 ACU, Aurora stays warm at ~$4/month and all requests respond normally.
-
----
-
 ## Configuration
 
 All configuration is via environment variables (or `appsettings.json`
 for local development). In Docker Compose, variables are set in the
-`docker-compose.yml` file. In AWS, they are stored in a single Secrets
-Manager secret and loaded automatically by the Lambda functions.
+`docker-compose.yml` file.
 
 ### Required
 
@@ -382,7 +161,7 @@ Manager secret and loaded automatically by the Lambda functions.
 
 ### Embedding Provider
 
-Choose between OpenAI (cloud), Ollama (local, free), or Amazon Bedrock.
+Choose between OpenAI (cloud) or Ollama (local, free).
 
 #### Option A: Ollama (default, no API key needed)
 
@@ -410,22 +189,11 @@ EMBEDDING_MODEL=text-embedding-3-large
 EMBEDDING_API_KEY=sk-...
 ```
 
-#### Option C: Amazon Bedrock
-
-```bash
-EMBEDDING_PROVIDER=bedrock
-EMBEDDING_MODEL=amazon.titan-embed-text-v2:0
-EMBEDDING_DIMENSIONS=1024
-# Uses ambient AWS credentials (IAM role in AWS; access keys in Docker Compose)
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-```
-
 #### All Embedding Options
 
 | Variable                        | Default                  | Description                          |
 | ------------------------------- | ------------------------ | ------------------------------------ |
-| `Embedding__Provider`           | `ollama`                 | `openai`, `ollama`, or `bedrock`     |
+| `Embedding__Provider`           | `ollama`                 | `openai` or `ollama`     |
 | `Embedding__Model`              | `nomic-embed-text`       | Model name                           |
 | `Embedding__Dimensions`         | `768`                    | Vector dimensions (must match model) |
 | `Embedding__ApiKey`             | (empty)                  | OpenAI API key                       |
@@ -448,23 +216,11 @@ CONTENTGENERATION__MODEL=gpt-4o
 CONTENTGENERATION__APIKEY=sk-...
 ```
 
-#### Option B: Amazon Bedrock
-
-```bash
-CONTENTGENERATION__PROVIDER=bedrock
-CONTENTGENERATION__MODEL=anthropic.claude-3-5-sonnet-20241022-v2:0
-CONTENTGENERATION__REGION=us-east-1
-```
-
-Bedrock uses the ambient AWS credentials from the environment
-(`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` or an IAM role).
-
 | Variable                      | Default    | Description               |
 | ----------------------------- | ---------- | ------------------------- |
-| `ContentGeneration__Provider` | `openai`   | `openai` or `bedrock`     |
+| `ContentGeneration__Provider` | `openai`   | `openai`                  |
 | `ContentGeneration__Model`    | `gpt-4o`   | Model identifier         |
-| `ContentGeneration__ApiKey`   | (required) | API key — OpenAI only     |
-| `ContentGeneration__Region`   | (empty)    | AWS region — Bedrock only |
+| `ContentGeneration__ApiKey`   | (required) | OpenAI API key           |
 
 ### Research Agent (optional)
 
@@ -491,136 +247,6 @@ The agent reuses the same LLM provider configuration (the
 `ContentGeneration` section keys) for agenda generation and synthesis.
 No additional LLM configuration is needed.
 
-### Voice Assistant (optional)
-
-The voice assistant is an **optional Python microservice** (`voice-service/`) that enables
-bi-directional voice navigation of your knowledgebase using Amazon Nova Sonic v2. It
-connects to your existing .NET API — no backend changes are required.
-
-#### Prerequisites
-
-- AWS Bedrock enabled in `us-east-1` with Nova Sonic v2 model access granted
-  (`amazon.nova-sonic-v2:0`)
-- Python 3.12+
-
-#### Local development (without Docker)
-
-```bash
-cd voice-service
-cp .env.example .env   # add AWS credentials and ZETTEL_API_URL
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-
-The frontend auto-detects the service: navigate to `/voice` in the app. If the service
-is not running, the page shows a friendly "unavailable" state — no errors elsewhere in
-the app.
-
-In dev, the frontend connects directly to `http://localhost:8000`. Set this in
-`src/zettel-web-ui/.env.local` to override the default Vite proxy:
-
-```bash
-VITE_VOICE_SERVICE_URL=http://localhost:8000
-```
-
-#### Docker Compose
-
-The voice service is profile-gated and does not affect existing deployments:
-
-```bash
-# Start the full stack including voice
-docker compose --profile voice up -d
-
-# Start without voice (default behaviour — unchanged)
-docker compose up -d
-```
-
-#### Configuration
-
-All values have sensible defaults. Only `ZETTEL_API_URL` and AWS credentials are required.
-
-| Variable | Default | Description |
-|---|---|---|
-| `ZETTEL_API_URL` | `http://localhost:5000` | Base URL of the .NET API |
-| `AWS_REGION` | `us-east-1` | AWS region (Nova Sonic is only in `us-east-1`) |
-| `AWS_ACCESS_KEY_ID` | — | AWS credentials |
-| `AWS_SECRET_ACCESS_KEY` | — | AWS credentials |
-| `BEDROCK_MODEL_ID` | `amazon.nova-sonic-v2:0` | Nova Sonic model ID |
-| `NOVA_SONIC_VOICE` | `matthew` | Voice for synthesised speech |
-| `NOVA_SONIC_VAD_SENSITIVITY` | `MEDIUM` | Server-side VAD: `LOW`, `MEDIUM`, or `HIGH` |
-| `NOVA_SONIC_MAX_TOKENS` | `2048` | Max output tokens per response |
-| `NOVA_SONIC_TEMPERATURE` | `0.7` | Sampling temperature |
-| `LOG_LEVEL` | `INFO` | Python log level: `DEBUG`, `INFO`, `WARNING` |
-
-#### How it works
-
-The voice service exposes a single WebSocket endpoint (`/ws`) that the browser connects
-to via the `/voice` page. Audio flows bi-directionally over one connection:
-
-- Browser → service: raw PCM audio frames (16 kHz, 16-bit mono), captured via Web Audio
-  API with voice activity detection
-- Service → browser: PCM audio frames (Nova Sonic synthesised speech) plus JSON events
-  (`citations`, `transcript`, `status`)
-
-When Nova Sonic decides it needs information, it fires tool calls handled server-side:
-
-```
-Browser mic → voice-service → Nova Sonic v2
-                 ↓ tool call
-              GET /api/search?q=... → .NET API (unchanged)
-              GET /api/notes/{id}  → .NET API (unchanged)
-                 ↓ answer
-Browser speaker ← voice-service ← Nova Sonic v2
-```
-
-Note titles retrieved during the conversation are displayed as clickable links in a
-sidebar while the spoken answer plays.
-
-### Optional: Fleeting Note Capture
-
-Capture quick notes from email or Telegram. Requires the SQS capture
-infrastructure (see [Webhook Ingestion](#webhook-ingestion-aws-sqs)).
-
-| Variable                              | Description                     |
-| ------------------------------------- | ------------------------------- |
-| `Capture__SqsQueueUrl`                | AWS SQS queue URL               |
-| `Capture__SqsRegion`                  | AWS region of the SQS queue     |
-| `AWS_ACCESS_KEY_ID`                   | AWS credentials for SQS polling |
-| `AWS_SECRET_ACCESS_KEY`               | AWS credentials for SQS polling |
-| `Capture__AllowedEmailSenders__0`     | Whitelisted email sender        |
-| `Capture__AllowedTelegramChatIds__0`  | Whitelisted Telegram chat ID    |
-| `Capture__TelegramBotToken`           | Telegram bot API token          |
-
-> **Note:** `Capture__TelegramBotToken` also enables outbound
-> [Telegram notifications](#telegram-notifications-optional). No
-> additional token is needed.
-
-### Telegram Notifications (optional)
-
-When `Capture__TelegramBotToken` is set, the app sends outbound
-notifications back to every chat ID in `Capture__AllowedTelegramChatIds`.
-No extra configuration is required — the same bot token is reused.
-
-**Notification events:**
-
-| Event | Message sent |
-|---|---|
-| Blog scheduler completes | `📝 1 blog post ready for review.` |
-| Social scheduler completes | `📱 3 social posts ready for review.` |
-| Scheduler skipped (no eligible notes) | `⚠️ Scheduled generation skipped: no eligible notes for topic discovery.` |
-| Scheduler run fails | `❌ Scheduled blog/social generation failed. Check logs for details.` |
-| Telegram capture received | `✅ Note saved.` (reply to the sender's chat) |
-
-Notifications are **best-effort**: if the Telegram API is unavailable
-the failure is logged at `Warning` level and the primary operation
-(generation or capture) is unaffected. When the bot token is absent a
-no-op notifier is registered automatically — no null-checks or
-conditional code required elsewhere.
-
-To receive notifications without enabling capture, set
-`Capture__TelegramBotToken` and add at least one chat ID to
-`Capture__AllowedTelegramChatIds`.
-
 ### Optional: Observability
 
 | Variable         | Description                                                          |
@@ -634,32 +260,6 @@ To receive notifications without enabling capture, set
 | `Search__SemanticWeight`    | `0.7`   | Weight for semantic scores in hybrid search  |
 | `Search__FullTextWeight`    | `0.3`   | Weight for full-text scores in hybrid search |
 | `Search__MinimumSimilarity` | `0.5`   | Minimum cosine similarity threshold          |
-
----
-
-## Webhook Ingestion (AWS SQS)
-
-To capture notes from email (via AWS SES) or Telegram on a server
-without a public IP, deploy the optional SQS relay stack in `infra/`.
-
-This creates:
-- API Gateway HTTP endpoint for Telegram webhooks
-- Lambda relay function (Telegram → SQS)
-- SES receipt rule for inbound email → SQS
-- Dead-letter queue with CloudWatch alarms
-
-```bash
-cd infra
-npm install
-npx cdk deploy
-```
-
-Once deployed, set the `Capture__SqsQueueUrl` environment variable in
-your app to enable the SQS polling background service.
-
-In the AWS serverless deployment, the SQS queue wires directly to a
-Lambda function via event source mapping — no long-polling background
-service is needed.
 
 ---
 
@@ -681,39 +281,10 @@ service is needed.
                     │                     │                  │
                ┌────▼─────┐    ┌─────────▼──┐   ┌──────────▼──────┐
                │PostgreSQL │    │ Embedding  │   │ Chat LLM        │
-               │+ pgvector │    │ (OpenAI /  │   │ (OpenAI/Bedrock)│
-               └───────────┘    │  Ollama /  │   └─────────────────┘
-                                │  Bedrock)  │
+               │+ pgvector │    │ (OpenAI /  │   │ (OpenAI)        │
+               └───────────┘    │  Ollama)   │   └─────────────────┘
                                 └────────────┘
 ```
-
-### AWS Serverless
-
-```
-Browser → Cognito Hosted UI (login) → access token
-        → CloudFront
-              └──▶ API Gateway HTTP API
-                        │ JWT Authorizer (validates Cognito token)
-                        └──▶ Lambda (ASP.NET Core + Lambda Web Adapter)
-                                  │
-                    ┌─────────────┼─────────────────┐
-                    │             │                  │
-              ┌─────▼──────┐   ┌─▼──────────┐   ┌──▼──────────────┐
-              │Aurora SV2  │   │Bedrock     │   │Secrets Manager  │
-              │PostgreSQL  │   │Embeddings  │   │(all config)     │
-              │+ pgvector  │   │+ Claude    │   └─────────────────┘
-              └────────────┘   └────────────┘
-
-EventBridge (60s) ──▶ EmbeddingWorker Lambda
-SQS event source ───▶ CaptureWorker Lambda
-Terraform apply ────▶ Migration Lambda (once per deploy)
-```
-
-The backend runs two background workers in Docker Compose (in-process)
-and two separate Lambda functions in the AWS deployment. The service
-logic is identical in both cases — only the hosting differs.
-
----
 
 ## API Reference
 
@@ -750,16 +321,6 @@ logic is identical in both cases — only the hosting differs.
 | `POST` | `/api/import` | Import markdown files (JSON array) |
 | `GET`  | `/api/export` | Download all notes as ZIP          |
 
-
-### Voice Configuration
-
-| Method   | Endpoint                   | Description                          |
-| -------- | -------------------------- | ------------------------------------ |
-| `GET`    | `/api/voice/examples`      | List writing examples                |
-| `POST`   | `/api/voice/examples`      | Add a writing example                |
-| `DELETE` | `/api/voice/examples/{id}` | Delete a writing example             |
-| `GET`    | `/api/voice/config`        | Get style notes (filter by `medium`) |
-| `PUT`    | `/api/voice/config`        | Set style notes for a medium (upsert)|
 
 ### Knowledge Base Health
 
@@ -808,17 +369,8 @@ Integration tests spin up a real PostgreSQL container via
 zettel-system/
   src/
     ZettelWeb/           # ASP.NET Core Web API
-      Lambda/            # Lambda handler entry points (AWS deployment)
     ZettelWeb.Tests/     # xUnit test project
     zettel-web-ui/       # React frontend (Vite + Tailwind)
-  voice-service/         # Optional Python voice assistant (Nova Sonic v2)
-    main.py              # FastAPI WebSocket server
-    agent.py             # Strands BidiAgent configuration
-    tools.py             # search_notes / get_note tool definitions
-  terraform/             # AWS infrastructure (Terraform)
-    modules/             # Reusable modules: networking, database, auth, api, workers, frontend
-    environments/prod/   # Production environment entry point
-  infra/                 # AWS CDK — optional SQS webhook ingestion stack
   docs/                  # Design docs, ADRs, compound knowledge docs
   docker-compose.example.yml  # Full stack (Traefik + backend + frontend + DB)
   docker-compose.dev.yml      # Dev database only (PostgreSQL 16 + pgvector)

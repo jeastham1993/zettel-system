@@ -9,7 +9,6 @@ on:
 
 env:
   GHCR_REGISTRY: ghcr.io
-  AWS_REGION: eu-west-1
 
 jobs:
   test-backend:
@@ -54,40 +53,9 @@ jobs:
       - run: npm test
         working-directory: src/zettel-web-ui
 
-  test-voice-service:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-          cache-dependency-path: voice-service/requirements.txt
-
-      - run: pip install -r requirements.txt
-        working-directory: voice-service
-
-      - name: Syntax check
-        run: python -m py_compile main.py agent.py tools.py
-        working-directory: voice-service
-
-      - name: Import smoke test
-        run: |
-          python -c "
-          import importlib, sys
-          # Verify modules import without errors (mocks AWS/env not needed for import)
-          import os
-          os.environ.setdefault('ZETTEL_API_URL', 'http://localhost:5000')
-          os.environ.setdefault('AWS_REGION', 'us-east-1')
-          import tools
-          print('tools imported OK')
-          "
-        working-directory: voice-service
-
   # Pushes backend + frontend images to GHCR (public, for Docker Compose deployments)
   build-and-push-ghcr:
-    needs: [test-backend, test-frontend, test-voice-service]
+    needs: [test-backend, test-frontend]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -100,8 +68,6 @@ jobs:
             context: ./src/ZettelWeb
           - image: frontend
             context: ./src/zettel-web-ui
-          - image: voice-service
-            context: ./voice-service
 
     steps:
       - uses: actions/checkout@v4
@@ -132,40 +98,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  # Pushes backend image to ECR for Lambda deployment.
-  # Requires AWS_ROLE_ARN repository secret (output from terraform/modules/ecr).
-  # Requires ECR_REPOSITORY_URL repository variable (output from terraform apply).
-  # build-and-push-ecr:
-  #   needs: [test-backend, test-frontend]
-  #   if: github.event_name != 'pull_request'
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: read
-  #     id-token: write   # Required for OIDC authentication to AWS
-
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     - name: Configure AWS credentials via OIDC
-  #       uses: aws-actions/configure-aws-credentials@v4
-  #       with:
-  #         role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-  #         aws-region: ${{ env.AWS_REGION }}
-
-  #     - name: Log in to Amazon ECR
-  #       id: ecr-login
-  #       uses: aws-actions/amazon-ecr-login@v2
-
-  #     - uses: docker/setup-buildx-action@v3
-
-  #     - name: Build and push backend to ECR
-  #       uses: docker/build-push-action@v6
-  #       with:
-  #         context: ./src/ZettelWeb
-  #         push: true
-  #         tags: |
-  #           ${{ vars.ECR_REPOSITORY_URL }}:${{ github.sha }}
-  #           ${{ vars.ECR_REPOSITORY_URL }}:latest
-  #         cache-from: type=gha
-  #         cache-to: type=gha,mode=max

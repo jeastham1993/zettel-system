@@ -6,7 +6,7 @@ Last Updated: 2026-10-17
 
 ZettelWeb is an ASP.NET Core API + React SPA backed by PostgreSQL with
 pgvector. Data flows through several pipelines: note management,
-embedding generation, search, capture/enrichment, and chat.
+embedding generation, search, enrichment, and chat.
 
 ---
 
@@ -57,24 +57,20 @@ search runs both queries and merges results using configurable
 
 ---
 
-## Capture & Enrichment
+## Enrichment
 
 ```
-External source ──▶ Webhook / SQS ──▶ CaptureService ──▶ Fleeting Note
-(email, Telegram)       │                                      │
-                        ▼                                      ▼
-              SqsPollingBackgroundService            EnrichmentQueue (Channel)
-                                                           │
-                                                           ▼
-                                              EnrichmentBackgroundService
-                                                           │
-                                                           ▼
-                                              URL metadata fetch + update
+Fleeting Note (created via web UI) ──▶ EnrichmentQueue (Channel)
+                                                │
+                                                ▼
+                                  EnrichmentBackgroundService
+                                                │
+                                                ▼
+                                  URL metadata fetch + update
 ```
 
-External messages arrive via webhooks or SQS polling. The
-`CaptureService` creates fleeting notes. URLs in captured content are
-enqueued for background enrichment (title/description extraction).
+URLs found in notes are enqueued for background enrichment
+(title/description extraction).
 
 ---
 

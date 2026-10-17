@@ -1,6 +1,10 @@
 import { Link } from 'react-router'
 import { BookOpen, ExternalLink } from 'lucide-react'
-import type { Citation } from '@/hooks/use-voice-session'
+
+export interface Citation {
+  id: string
+  title: string
+}
 
 export function CitationsSidebar({ citations }: { citations: Citation[] }) {
   return (

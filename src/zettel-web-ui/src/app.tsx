@@ -5,7 +5,6 @@ import { HomePage } from '@/pages/home'
 import { NotePage } from '@/pages/note'
 import { EditorPage } from '@/pages/editor'
 import { NotFoundPage } from '@/pages/not-found'
-import { CallbackPage } from '@/pages/callback'
 
 const GraphPage = lazy(() =>
   import('./pages/graph').then((m) => ({ default: m.GraphPage })),
@@ -15,9 +14,6 @@ const InboxPage = lazy(() =>
 )
 const SettingsPage = lazy(() =>
   import('./pages/settings').then((m) => ({ default: m.SettingsPage })),
-)
-const VoicePage = lazy(() =>
-  import('./pages/voice').then((m) => ({ default: m.VoicePage })),
 )
 const KbHealthPage = lazy(() =>
   import('./pages/kb-health').then((m) => ({ default: m.KbHealthPage })),
@@ -38,8 +34,6 @@ function LazyFallback() {
 }
 
 export const router = createBrowserRouter([
-  // Auth callback — outside AppShell, no auth required
-  { path: '/callback', element: <CallbackPage /> },
   {
     element: <AppShell />,
     children: [
@@ -60,14 +54,6 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LazyFallback />}>
             <SettingsPage />
-          </Suspense>
-        ),
-      },
-      {
-        path: '/voice',
-        element: (
-          <Suspense fallback={<LazyFallback />}>
-            <VoicePage />
           </Suspense>
         ),
       },

@@ -1,7 +1,8 @@
 # ADR-004: SQS Webhook Ingestion for Private Server
 
 Date: 2026-02-14
-Status: Proposed
+Status: Removed (2026-10) — the SQS relay, Lambda handlers, and email/Telegram
+webhook capture were removed; the local deployment is Docker Compose only.
 
 ## Context
 

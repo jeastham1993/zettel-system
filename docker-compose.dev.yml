@@ -10,21 +10,5 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  # Voice service (optional):
-  # Run separately with: cd voice-service && uvicorn main:app --reload --port 8000
-  # Set VITE_VOICE_SERVICE_URL=http://localhost:8000 in src/zettel-web-ui/.env.local
-
-  voice-service:
-    build:
-      context: ./voice-service
-    ports:
-      - "8000:8000"
-    environment:
-      ZETTEL_API_URL: http://host.docker.internal:5000
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-    profiles: ["voice"]
-
 volumes:
   pgdata:

@@ -1,7 +1,8 @@
 # ADR-011: AWS Serverless Deployment Strategy
 
 Date: 2026-02-26
-Status: Proposed
+Status: Removed (2026-10) — the AWS Lambda/Terraform deployment was removed;
+Docker Compose is the only supported deployment. Kept as historical record.
 
 ## Context
 

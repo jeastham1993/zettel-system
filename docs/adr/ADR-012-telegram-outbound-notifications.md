@@ -1,7 +1,8 @@
 # ADR-012: Outbound Telegram Notifications via `ITelegramNotifier`
 
 Date: 2026-02-27
-Status: Proposed
+Status: Removed (2026-10) — Telegram notifications were removed along with capture.
+Kept as historical record.
 
 ## Context
 

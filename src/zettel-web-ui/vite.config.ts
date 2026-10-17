@@ -52,14 +52,6 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
-      // Voice service proxy — only used when VITE_VOICE_SERVICE_URL is not set.
-      // Set VITE_VOICE_SERVICE_URL=http://localhost:8000 in .env.local to bypass this.
-      '/voice-service': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/voice-service/, ''),
-        ws: true,
-      },
     },
   },
 })

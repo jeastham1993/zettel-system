@@ -1,7 +1,7 @@
 # Design: SQS Webhook Ingestion for Private Server
 
 Generated: 2026-02-14
-Status: Draft
+Status: Removed (2026-10) — SQS webhook ingestion was removed. Historical record only.
 
 ## Problem Statement
 

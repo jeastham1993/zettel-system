@@ -53,8 +53,8 @@ public class EnrichmentTelemetryTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Capture:EnrichmentTimeoutSeconds"] = "10",
-                ["Capture:EnrichmentMaxRetries"] = "3",
+                ["Enrichment:TimeoutSeconds"] = "10",
+                ["Enrichment:MaxRetries"] = "3",
             })
             .Build();
 

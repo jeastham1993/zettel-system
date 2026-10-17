@@ -41,13 +41,6 @@ services:
       Embedding__ApiKey: "${EMBEDDING_API_KEY:-}"
       Embedding__Model: "${EMBEDDING_MODEL:-nomic-embed-text}"
       Embedding__OllamaUrl: "${EMBEDDING_OLLAMA_URL:-http://host.docker.internal:11434}"
-      Capture__SqsQueueUrl: ${CAPTURE_SQS_QUEUE_URL:-}
-      Capture__SqsRegion: "eu-west-1"
-      Capture__AllowedEmailSenders__0: ${CAPTURE_ALLOWED_EMAIL_SENDERS_0:-}
-      Capture__AllowedTelegramChatIds__0: ${CAPTURE_ALLOWED_TELEGRAM_CHAT_IDS_0:-}
-      Capture__TelegramBotToken: ${TELEGRAM_BOT_TOKEN:-}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`) || PathPrefix(`/health`)"
@@ -63,31 +56,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-
-  voice-service:
-    build:
-      context: ./voice-service
-    environment:
-      ZETTEL_API_URL: http://backend:8080
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      # Optional: send traces, metrics, and logs to an OpenTelemetry collector
-      OTEL_ENDPOINT: ${OTEL_ENDPOINT:-}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.voice-service.rule=PathPrefix(`/voice-service`)"
-      - "traefik.http.routers.voice-service.entrypoints=web"
-      - "traefik.http.routers.voice-service.priority=50"
-      - "traefik.http.middlewares.voice-strip.stripprefix.prefixes=/voice-service"
-      - "traefik.http.routers.voice-service.middlewares=voice-strip"
-      - "traefik.http.services.voice-service.loadbalancer.server.port=8000"
-    depends_on:
-      backend:
-        condition: service_healthy
-    profiles: ["voice"]
-    networks:
-      - zettel
 
   frontend:
     build:

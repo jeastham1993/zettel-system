@@ -35,8 +35,8 @@ public class EnrichmentBackgroundServiceTests
         return new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Capture:EnrichmentTimeoutSeconds"] = timeoutSeconds.ToString(),
-                ["Capture:EnrichmentMaxRetries"] = maxRetries.ToString(),
+                ["Enrichment:TimeoutSeconds"] = timeoutSeconds.ToString(),
+                ["Enrichment:MaxRetries"] = maxRetries.ToString(),
             })
             .Build();
     }

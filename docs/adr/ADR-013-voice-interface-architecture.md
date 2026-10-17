@@ -1,7 +1,7 @@
 # ADR-013: Voice Interface Architecture
 
 Date: 2026-03-07
-Status: Accepted
+Status: Removed (2026-10) — the voice assistant was removed. Kept as historical record.
 
 ## Context
 

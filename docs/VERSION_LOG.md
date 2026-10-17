@@ -2,6 +2,33 @@
 
 Last Updated: 2026-10-17
 
+## 1.2.0 - 2026-10-17
+
+### Removed
+- Removed the AWS deployment stack entirely — Docker Compose on a local
+  server is the only supported deployment:
+  - `terraform/` (API Gateway, Cognito, Aurora Serverless, CloudFront,
+    ECR, worker/migration Lambdas) and `infra/` (CDK SQS webhook relay)
+  - All .NET Lambda handlers (`EmbeddingWorker`, `CaptureWorker`,
+    `MigrationRunner`, `LambdaServiceProvider`) and the Lambda Web
+    Adapter from the backend Docker image (the cause of the CI ECR
+    rate-limit failures)
+  - SQS webhook ingestion and email/Telegram webhook capture
+    (`CaptureController`, `CaptureService`, `SqsPollingBackgroundService`,
+    `CaptureConfig`), Telegram notifications, and the Cognito PKCE
+    frontend auth (only used by the AWS deployment)
+  - The voice assistant (`voice-service/`, `/voice` page, voice session
+    hook, CI job, compose profile)
+  - Bedrock provider support for embeddings and chat LLM (OpenAI and
+    Ollama remain)
+- Backend now has zero AWS SDK dependencies
+
+### Changes
+- Enrichment config moved from the `Capture:` section to
+  `Enrichment:TimeoutSeconds` / `Enrichment:MaxRetries`
+- Chat LLM provider is OpenAI-only (`ContentGeneration:` keys unchanged)
+- EF migrations run unconditionally at startup (no Lambda migration step)
+
 ## 1.1.0 - 2026-10-17
 
 ### Removed

@@ -20,15 +20,6 @@ services:
       Embedding__ApiKey: "${EMBEDDING_API_KEY:-}"
       Embedding__Model: "${EMBEDDING_MODEL:-nomic-embed-text}"
       Embedding__OllamaUrl: "${EMBEDDING_OLLAMA_URL:-http://host.docker.internal:11434}"
-      # Capture settings are if you have deployed the optional capture service and want to enable it. If you don't set these, the capture service will be disabled.
-      Capture__SqsQueueUrl: ${CAPTURE_SQS_QUEUE_URL:-}
-      Capture__SqsRegion: "eu-west-1"
-      Capture__AllowedEmailSenders__0: ${CAPTURE_ALLOWED_EMAIL_SENDERS_0:-}
-      Capture__AllowedTelegramChatIds__0: ${CAPTURE_ALLOWED_TELEGRAM_CHAT_IDS_0:-}
-      Capture__TelegramBotToken: ${TELEGRAM_BOT_TOKEN:-}
-      # Required if you are using the AWS deployed capture service
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       # CORS settings to allow access
       Cors__AllowedOrigins__0: "http://localhost:8081"
     labels:

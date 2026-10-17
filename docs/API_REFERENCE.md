@@ -157,17 +157,6 @@ Build the knowledge graph.
 }
 ```
 
----
-
-## Capture
-
-### `POST /api/capture/email`
-Email webhook. Requires `X-Webhook-Secret` header.
-
-### `POST /api/capture/telegram`
-Telegram webhook. Requires `X-Telegram-Bot-Api-Secret-Token` header.
-
-Rate limited: 10 requests/minute.
 
 ---
 

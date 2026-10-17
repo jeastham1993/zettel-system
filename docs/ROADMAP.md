@@ -30,20 +30,9 @@ with pgvector for semantic search.
 
 ### Fleeting Notes (Batch 20)
 - Quick capture from web UI (floating button, Ctrl+Shift+N)
-- Email capture via webhook (POST /api/capture/email)
-- Telegram capture via webhook (POST /api/capture/telegram)
 - Inbox page with fleeting note management
 - Background URL enrichment service
 
-### SQS Webhook Ingestion (Batch 21)
-- AWS CDK infrastructure (API Gateway + Lambda + SQS + CloudWatch)
-- Thin Lambda relay (no business logic in AWS)
-- SqsPollingBackgroundService for private server deployments
-- Messages survive server downtime (14-day SQS retention)
-- Dead letter queue for poison messages
-- CloudWatch alarms -> SNS email notifications
-- Deployment guide: [deployment-sqs-webhook-ingestion.md](
-  deployment-sqs-webhook-ingestion.md)
 
 ### Structure Notes & Sources (Batch 22 - Backend)
 - NoteType enum (Regular/Structure/Source) on permanent notes
@@ -78,7 +67,7 @@ with pgvector for semantic search.
 - [ADR-002](adr/ADR-002-postgresql-native-search.md): PostgreSQL Native
   Search
 - [ADR-003](adr/ADR-003-fleeting-notes-architecture.md): Fleeting Notes
-- [ADR-004](adr/ADR-004-sqs-webhook-ingestion.md): SQS Webhook Ingestion
+- [ADR-004](adr/ADR-004-sqs-webhook-ingestion.md): SQS Webhook Ingestion (removed 2026-10)
 - [ADR-005](adr/ADR-005-structure-notes-sources.md): Structure Notes
   & Sources
 - [ADR-006](adr/ADR-006-opentelemetry-observability.md): OpenTelemetry

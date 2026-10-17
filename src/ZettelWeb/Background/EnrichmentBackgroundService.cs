@@ -38,8 +38,8 @@ public partial class EnrichmentBackgroundService : BackgroundService
         _httpClientFactory = httpClientFactory;
         _urlSafetyChecker = urlSafetyChecker;
         _logger = logger;
-        _timeoutSeconds = configuration.GetValue("Capture:EnrichmentTimeoutSeconds", 10);
-        _maxRetries = configuration.GetValue("Capture:EnrichmentMaxRetries", 3);
+        _timeoutSeconds = configuration.GetValue("Enrichment:TimeoutSeconds", 10);
+        _maxRetries = configuration.GetValue("Enrichment:MaxRetries", 3);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

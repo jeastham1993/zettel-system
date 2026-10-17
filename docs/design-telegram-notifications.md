@@ -1,7 +1,7 @@
 # Design: Outbound Telegram Notifications
 
 Generated: 2026-02-27
-Status: Draft
+Status: Removed (2026-10) — Telegram notifications were removed. Historical record only.
 
 ## Problem Statement
 

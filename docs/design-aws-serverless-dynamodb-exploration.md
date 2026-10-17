@@ -1,7 +1,7 @@
 # Design Exploration: Fully Serverless with DynamoDB + S3 Vectors
 
 Generated: 2026-02-26
-Status: Draft — Exploration (extends design-aws-serverless-deployment.md)
+Status: Removed (2026-10) — the AWS deployment was removed. Historical record only.
 
 ---
 

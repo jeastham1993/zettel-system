@@ -1,5 +1,3 @@
-import { getToken, redirectToLogin } from '../auth'
-
 export class ApiError extends Error {
   status: number
   statusText: string
@@ -12,17 +10,7 @@ export class ApiError extends Error {
   }
 }
 
-function authHeaders(): Record<string, string> {
-  const token = getToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
 async function handleResponse<T>(response: Response): Promise<T> {
-  if (response.status === 401) {
-    // Token expired or missing — redirect back to Cognito login
-    await redirectToLogin()
-    throw new ApiError(401, 'Unauthorized', 'Session expired — redirecting to login')
-  }
   if (!response.ok) {
     const body = await response.text().catch(() => '')
     throw new ApiError(response.status, response.statusText, body || undefined)
@@ -32,14 +20,14 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 export async function get<T>(url: string): Promise<T> {
-  const response = await fetch(url, { headers: authHeaders() })
+  const response = await fetch(url)
   return handleResponse<T>(response)
 }
 
 export async function post<T>(url: string, body?: unknown): Promise<T> {
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   return handleResponse<T>(response)
@@ -48,26 +36,19 @@ export async function post<T>(url: string, body?: unknown): Promise<T> {
 export async function put<T>(url: string, body: unknown): Promise<T> {
   const response = await fetch(url, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
   return handleResponse<T>(response)
 }
 
 export async function del(url: string): Promise<void> {
-  const response = await fetch(url, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  })
+  const response = await fetch(url, { method: 'DELETE' })
   return handleResponse<void>(response)
 }
 
 export async function getBlob(url: string): Promise<Blob> {
-  const response = await fetch(url, { headers: authHeaders() })
-  if (response.status === 401) {
-    await redirectToLogin()
-    throw new ApiError(401, 'Unauthorized')
-  }
+  const response = await fetch(url)
   if (!response.ok) {
     throw new ApiError(response.status, response.statusText)
   }

@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Plus, Search, GitBranch, Inbox, Menu, Mic, Activity, Telescope, MessageSquare } from 'lucide-react'
+import { Plus, Search, GitBranch, Inbox, Menu, Activity, Telescope, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import {
   Tooltip,
   TooltipContent,
@@ -83,19 +82,6 @@ export function Header({ onOpenSearch }: HeaderProps) {
             <TooltipContent>
               Inbox{count > 0 ? ` (${count})` : ''}
             </TooltipContent>
-          </Tooltip>
-
-          <Separator orientation="vertical" className="h-4" />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/voice" className="text-muted-foreground">
-                  <Mic className="h-4 w-4" />
-                </Link>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Voice assistant</TooltipContent>
           </Tooltip>
 
           <Tooltip>
@@ -187,12 +173,6 @@ export function Header({ onOpenSearch }: HeaderProps) {
                   {count > 0 && (
                     <span className="ml-auto text-xs text-amber-500">{count}</span>
                   )}
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/voice" className="gap-2" onClick={() => setMenuOpen(false)}>
-                  <Mic className="h-4 w-4" />
-                  Voice assistant
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>

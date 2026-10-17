@@ -1,7 +1,4 @@
-using System.Threading.RateLimiting;
-using Amazon.BedrockRuntime;
-using Amazon.SQS;
-using Microsoft.AspNetCore.RateLimiting;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Npgsql;
@@ -106,8 +103,6 @@ builder.Services.AddScoped<IImportService, ImportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<IGraphService, GraphService>();
 builder.Services.AddScoped<IKbHealthService, KbHealthService>();
-builder.Services.Configure<CaptureConfig>(builder.Configuration.GetSection("Capture"));
-builder.Services.AddScoped<CaptureService>();
 builder.Services.AddScoped<IDiscoveryService, DiscoveryService>();
 builder.Services.AddScoped<ISearchService>(sp =>
     new SearchService(
@@ -139,16 +134,6 @@ if (string.Equals(embeddingProvider, "ollama", StringComparison.OrdinalIgnoreCas
     builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
         new OllamaApiClient(ollamaHttpClient, embeddingModel));
 }
-else if (string.Equals(embeddingProvider, "bedrock", StringComparison.OrdinalIgnoreCase))
-{
-    var bedrockRegion = builder.Configuration["Embedding:BedrockRegion"];
-    var client = !string.IsNullOrEmpty(bedrockRegion)
-        ? new AmazonBedrockRuntimeClient(Amazon.RegionEndpoint.GetBySystemName(bedrockRegion))
-        : new AmazonBedrockRuntimeClient();
-    var dimensions = builder.Configuration.GetValue<int?>("Embedding:Dimensions");
-    builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
-        client.AsIEmbeddingGenerator(embeddingModel, dimensions));
-}
 else
 {
     var apiKey = builder.Configuration["Embedding:ApiKey"] ?? "";
@@ -156,14 +141,7 @@ else
         new OpenAIClient(apiKey).GetEmbeddingClient(embeddingModel).AsIEmbeddingGenerator());
 }
 
-// In Lambda, background services are replaced by separate Lambda functions.
-// The AWS_LAMBDA_FUNCTION_NAME env var is set automatically by the Lambda runtime.
-var isLambda = !string.IsNullOrEmpty(builder.Configuration["AWS_LAMBDA_FUNCTION_NAME"]);
-
-if (!isLambda)
-{
-    builder.Services.AddHostedService<EmbeddingBackgroundService>();
-}
+builder.Services.AddHostedService<EmbeddingBackgroundService>();
 
 builder.Services.AddHttpClient("Enrichment");
 builder.Services.Configure<ResearchOptions>(builder.Configuration.GetSection(ResearchOptions.SectionName));
@@ -173,75 +151,22 @@ builder.Services.AddSingleton<IWebSearchClient, BraveSearchClient>();
 builder.Services.AddSingleton<IArxivClient, ArxivApiClient>();
 builder.Services.AddScoped<IResearchAgentService, ResearchAgentService>();
 builder.Services.AddSingleton<IResearchExecutionQueue, ChannelResearchExecutionQueue>();
-if (!isLambda)
-{
-    builder.Services.AddHostedService<ResearchExecutionBackgroundService>();
-}
-
-if (!isLambda)
-{
-    builder.Services.AddHostedService<EnrichmentBackgroundService>();
-}
+builder.Services.AddHostedService<ResearchExecutionBackgroundService>();
+builder.Services.AddHostedService<EnrichmentBackgroundService>();
 
 // ── LLM chat client (IChatClient) — used by Chat and KB Health. ──
 // Note: config keys remain under the ContentGeneration: section for
 // backward compatibility with deployed environment configuration.
-var cgProvider = builder.Configuration["ContentGeneration:Provider"] ?? "bedrock";
-var cgModel = builder.Configuration["ContentGeneration:Model"]
-    ?? "anthropic.claude-3-5-sonnet-20241022-v2:0";
+var cgProvider = builder.Configuration["ContentGeneration:Provider"] ?? "openai";
+var cgModel = builder.Configuration["ContentGeneration:Model"] ?? "gpt-4o";
 
-if (string.Equals(cgProvider, "bedrock", StringComparison.OrdinalIgnoreCase))
-{
-    var cgRegion = builder.Configuration["ContentGeneration:Region"];
-    var bedrockClient = !string.IsNullOrEmpty(cgRegion)
-        ? new AmazonBedrockRuntimeClient(Amazon.RegionEndpoint.GetBySystemName(cgRegion))
-        : new AmazonBedrockRuntimeClient();
-    builder.Services.AddSingleton<IChatClient>(bedrockClient.AsIChatClient(cgModel));
-}
-else
-{
-    var cgApiKey = builder.Configuration["ContentGeneration:ApiKey"] ?? "";
-    builder.Services.AddSingleton<IChatClient>(
-        new OpenAIClient(cgApiKey).GetChatClient(cgModel).AsIChatClient());
-}
+var cgApiKey = builder.Configuration["ContentGeneration:ApiKey"] ?? "";
+builder.Services.AddSingleton<IChatClient>(
+    new OpenAIClient(cgApiKey).GetChatClient(cgModel).AsIChatClient());
 
-// ── Telegram outbound notifications ───────────────────────
-var telegramToken = builder.Configuration["Capture:TelegramBotToken"];
-if (!string.IsNullOrEmpty(telegramToken))
-{
-    builder.Services.AddHttpClient("Telegram", c => c.Timeout = TimeSpan.FromSeconds(10));
-    builder.Services.AddSingleton<ITelegramNotifier, TelegramNotifier>();
-}
-else
-{
-    builder.Services.AddSingleton<ITelegramNotifier, NullTelegramNotifier>();
-}
-
-var sqsQueueUrl = builder.Configuration["Capture:SqsQueueUrl"];
-if (!string.IsNullOrEmpty(sqsQueueUrl))
-{
-    var sqsRegion = builder.Configuration["Capture:SqsRegion"];
-    if (!string.IsNullOrEmpty(sqsRegion))
-    {
-        builder.Services.AddSingleton<IAmazonSQS>(_ =>
-            new AmazonSQSClient(Amazon.RegionEndpoint.GetBySystemName(sqsRegion)));
-    }
-    else
-    {
-        builder.Services.AddSingleton<IAmazonSQS, AmazonSQSClient>();
-    }
-    builder.Services.AddSingleton<SqsPollingBackgroundService>();
-    builder.Services.AddHostedService(sp => sp.GetRequiredService<SqsPollingBackgroundService>());
-}
-
-var healthChecks = builder.Services.AddHealthChecks()
+builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database")
     .AddCheck<EmbeddingHealthCheck>("embedding");
-
-if (!string.IsNullOrEmpty(sqsQueueUrl))
-{
-    healthChecks.AddCheck<SqsPollingHealthCheck>("sqs-polling");
-}
 
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
@@ -258,29 +183,9 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddRateLimiter(options =>
-{
-    options.AddFixedWindowLimiter("capture", limiter =>
-    {
-        limiter.PermitLimit = 10;
-        limiter.Window = TimeSpan.FromMinutes(1);
-    });
-    options.OnRejected = async (context, _) =>
-    {
-        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        await context.HttpContext.Response.WriteAsync("Rate limit exceeded", _);
-    };
-});
-
 var app = builder.Build();
 
-// Migrations and HNSW index creation are handled by the MigrationLambda,
-// which is invoked once by Terraform (aws_lambda_invocation) during deployment.
-// Running migrations at startup is unsafe in Lambda: multiple concurrent cold starts
-// would all attempt to acquire the migration lock simultaneously.
-// For local development and Docker Compose, the MigrationHandler can be invoked
-// directly: dotnet run --project ZettelWeb -- --migrate
-if (!isLambda)
+// Apply pending EF migrations at startup, then ensure the HNSW index exists.
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ZettelDbContext>();
@@ -289,7 +194,7 @@ if (!isLambda)
     var dimensions = app.Configuration.GetValue<int>("Embedding:Dimensions");
     if (dimensions > 0 && dimensions <= 4096)
     {
-#pragma warning disable EF1003 // Intentional raw SQL for DDL — see safety comment in MigrationHandler
+#pragma warning disable EF1003 // Intentional raw SQL for DDL
         db.Database.ExecuteSqlRaw(
             $"CREATE INDEX IF NOT EXISTS idx_notes_embedding_hnsw " +
             $"ON \"Notes\" USING hnsw ((\"Embedding\"::vector({dimensions})) vector_cosine_ops) " +
@@ -299,7 +204,7 @@ if (!isLambda)
 }
 
 app.UseCors();
-app.UseRateLimiter();
+
 app.MapControllers();
 app.MapOpenApi();
 app.MapScalarApiReference(options =>
