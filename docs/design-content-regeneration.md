@@ -1,7 +1,7 @@
 # Design: Content Regeneration from Existing Generation
 
 Generated: 2026-02-23
-Status: Draft
+Status: Removed (2026-10, commit `bed2ed0`) — historical record only
 
 ---
 

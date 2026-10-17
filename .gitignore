@@ -452,3 +452,6 @@ terraform/.terraform.lock.hcl
 *.tfstate
 *.tfstate.backup
 .terraform.tfstate.lock.info
+
+# macOS
+.DS_Store

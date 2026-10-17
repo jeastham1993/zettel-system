@@ -1,5 +1,9 @@
 # Design: Automated Content Generator
 
+> **⚠️ REMOVED 2026-10**: The content generator feature documented here was
+> removed in full (commit `bed2ed0`). This document is kept as a historical
+> record only — do not implement against it.
+
 ## Overview
 
 A scheduled feature that mines a personal Zettelkasten knowledge base, discovers interesting threads of connected notes, and generates publish-ready content — blog posts and social media posts — written in the owner's authentic voice.

@@ -2,6 +2,8 @@
 
 Generated: 2026-02-24
 Features: `feat: add Knowledge Health Dashboard` + publishing services
+Note: publishing services and the "Never Used as Seeds" KB Health section
+were removed 2026-10 (commit `bed2ed0`). The KB Health dashboard remains.
 
 ---
 

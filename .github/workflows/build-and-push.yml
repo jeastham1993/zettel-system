@@ -47,6 +47,10 @@ jobs:
       - run: npm ci
         working-directory: src/zettel-web-ui
 
+      - name: Type-check and build
+        run: npm run build
+        working-directory: src/zettel-web-ui
+
       - run: npm test
         working-directory: src/zettel-web-ui
 
