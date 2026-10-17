@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ZettelWeb.Data;
@@ -45,8 +46,7 @@ public class ResearchAgentServiceTests
         public KbHealthOverview Overview { get; set; } = new(
             new KbHealthScorecard(5, 80, 1, 2.0),
             [new UnconnectedNote("orphan1", "Orphan Note", DateTime.UtcNow, 0)],
-            [new ClusterSummary("hub1", "Hub Note", 3)],
-            [new UnusedSeedNote("seed1", "Seed Note", 4)]);
+            [new ClusterSummary("hub1", "Hub Note", 3)]);
 
         public Task<KbHealthOverview> GetOverviewAsync() => Task.FromResult(Overview);
         public Task<IReadOnlyList<ConnectionSuggestion>> GetConnectionSuggestionsAsync(string noteId, int limit = 5)

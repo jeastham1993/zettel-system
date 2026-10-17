@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using ZettelWeb.Data;
@@ -179,38 +180,6 @@ public class KbHealthServiceTests
         var topCluster = overview.RichestClusters.First();
         Assert.Equal(3, topCluster.NoteCount);
         Assert.Equal("a1", topCluster.HubNoteId); // a1 has 2 edges, a2/a3 have 1 each
-    }
-
-    [Fact]
-    public async Task GetOverview_NeverUsedAsSeeds_ExcludesUsedSeeds()
-    {
-        var db = CreateDb();
-        db.Notes.AddRange(
-            new Note { Id = "n1", Title = "Used", Content = "C", EmbedStatus = EmbedStatus.Completed },
-            new Note { Id = "n2", Title = "Unused", Content = "C", EmbedStatus = EmbedStatus.Completed });
-        db.UsedSeedNotes.Add(new UsedSeedNote { NoteId = "n1" });
-        await db.SaveChangesAsync();
-
-        var overview = await CreateService(db).GetOverviewAsync();
-
-        Assert.Single(overview.NeverUsedAsSeeds);
-        Assert.Equal("n2", overview.NeverUsedAsSeeds[0].Id);
-    }
-
-    [Fact]
-    public async Task GetOverview_NeverUsedAsSeeds_ExcludesNonEmbeddedNotes()
-    {
-        var db = CreateDb();
-        db.Notes.AddRange(
-            new Note { Id = "n1", Title = "Embedded", Content = "C", EmbedStatus = EmbedStatus.Completed },
-            new Note { Id = "n2", Title = "Pending", Content = "C", EmbedStatus = EmbedStatus.Pending });
-        await db.SaveChangesAsync();
-
-        var overview = await CreateService(db).GetOverviewAsync();
-
-        // Only the embedded note should appear as a potential unused seed
-        Assert.Single(overview.NeverUsedAsSeeds);
-        Assert.Equal("n1", overview.NeverUsedAsSeeds[0].Id);
     }
 
     // ── InsertWikilinkAsync ─────────────────────────────────────────────────

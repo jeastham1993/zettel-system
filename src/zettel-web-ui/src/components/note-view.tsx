@@ -3,7 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import { Link as RouterLink, useNavigate } from 'react-router'
-import { Pencil, Trash2, ArrowLeft, Network, BookOpen, ExternalLink, Sparkles, Loader2 } from 'lucide-react'
+import { Pencil, Trash2, ArrowLeft, Network, BookOpen, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -12,9 +12,7 @@ import { ConfirmDialog } from './confirm-dialog'
 import { SourceReferences } from './source-references'
 import { fullDate } from '@/lib/format'
 import { useDeleteNote } from '@/hooks/use-notes'
-import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import * as contentApi from '@/api/content'
 import type { Note } from '@/api/types'
 
 interface NoteViewProps {
@@ -24,17 +22,6 @@ interface NoteViewProps {
 export function NoteView({ note }: NoteViewProps) {
   const navigate = useNavigate()
   const deleteNote = useDeleteNote()
-
-  const generateContent = useMutation({
-    mutationFn: () => contentApi.triggerGenerationFromNote(note.id),
-    onSuccess: () => {
-      toast.success('Content generation started', {
-        description: 'View it on the Content page.',
-        action: { label: 'View', onClick: () => navigate('/content') },
-      })
-    },
-    onError: () => toast.error('Failed to generate content'),
-  })
 
   const editor = useEditor({
     extensions: [
@@ -166,20 +153,6 @@ export function NoteView({ note }: NoteViewProps) {
             <Pencil className="h-3.5 w-3.5" />
             Edit
           </RouterLink>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => generateContent.mutate()}
-          disabled={generateContent.isPending}
-          className="gap-1.5"
-        >
-          {generateContent.isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )}
-          Generate Content
         </Button>
         <ConfirmDialog
           trigger={

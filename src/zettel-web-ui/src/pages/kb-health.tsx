@@ -4,7 +4,6 @@ import { Link } from 'react-router'
 import {
   Unlink,
   Network,
-  Sprout,
   ChevronRight,
   X,
   Link2,
@@ -698,47 +697,6 @@ export function KbHealthPage() {
             )}
           </section>
 
-          {/* Never Used as Seeds */}
-          <section>
-            <div className="mb-3 flex items-center gap-2">
-              <Sprout className="h-4 w-4 text-muted-foreground" />
-              <h2 className="font-medium">Never Used as Seeds</h2>
-              {overview && (
-                <Badge variant="secondary" className="ml-auto">
-                  {overview.neverUsedAsSeeds.length}
-                </Badge>
-              )}
-            </div>
-
-            {isLoading && <Skeleton className="h-32 w-full rounded-lg" />}
-
-            {!isLoading && overview?.neverUsedAsSeeds.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                All embedded notes have been used as seeds.
-              </p>
-            )}
-
-            {!isLoading && (
-              <ul className="space-y-1.5">
-                {overview?.neverUsedAsSeeds.slice(0, 10).map((note) => (
-                  <li
-                    key={note.id}
-                    className="flex items-center justify-between rounded-md border border-border/50 bg-card px-3 py-2 text-sm"
-                  >
-                    <Link
-                      to={`/notes/${note.id}`}
-                      className="min-w-0 truncate font-medium hover:underline"
-                    >
-                      {note.title}
-                    </Link>
-                    <Badge variant="outline" className="ml-2 shrink-0 text-xs">
-                      {note.connectionCount} links
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
 
           {/* Missing Embeddings */}
           <MissingEmbeddingsSection />

@@ -106,110 +106,6 @@ namespace ZettelWeb.Data.Migrations
                     b.ToTable("ChatSessions");
                 });
 
-            modelBuilder.Entity("ZettelWeb.Models.ContentGeneration", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(21)
-                        .HasColumnType("character varying(21)");
-
-                    b.PrimitiveCollection<string>("ClusterNoteIds")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<DateTime>("GeneratedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SeedNoteId")
-                        .IsRequired()
-                        .HasMaxLength(21)
-                        .HasColumnType("character varying(21)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("Pending");
-
-                    b.PrimitiveCollection<float[]>("TopicEmbedding")
-                        .HasColumnType("real[]");
-
-                    b.Property<string>("TopicSummary")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ContentGenerations");
-                });
-
-            modelBuilder.Entity("ZettelWeb.Models.ContentPiece", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(21)
-                        .HasColumnType("character varying(21)");
-
-                    b.Property<DateTime?>("ApprovedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("DraftReference")
-                        .HasColumnType("text");
-
-                    b.Property<string>("EditorFeedback")
-                        .HasColumnType("text");
-
-                    b.PrimitiveCollection<string>("GeneratedTags")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("GenerationId")
-                        .IsRequired()
-                        .HasMaxLength(21)
-                        .HasColumnType("character varying(21)");
-
-                    b.Property<string>("Medium")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime?>("SentToDraftAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Sequence")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("Draft");
-
-                    b.Property<string>("Title")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GenerationId");
-
-                    b.HasIndex("Status");
-
-                    b.ToTable("ContentPieces");
-                });
-
             modelBuilder.Entity("ZettelWeb.Models.Note", b =>
                 {
                     b.Property<string>("Id")
@@ -487,89 +383,11 @@ namespace ZettelWeb.Data.Migrations
                     b.ToTable("ResearchTasks");
                 });
 
-            modelBuilder.Entity("ZettelWeb.Models.UsedSeedNote", b =>
-                {
-                    b.Property<string>("NoteId")
-                        .HasMaxLength(21)
-                        .HasColumnType("character varying(21)");
-
-                    b.Property<DateTime>("UsedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("NoteId");
-
-                    b.ToTable("UsedSeedNotes");
-                });
-
-            modelBuilder.Entity("ZettelWeb.Models.VoiceConfig", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(21)
-                        .HasColumnType("character varying(21)");
-
-                    b.Property<string>("Medium")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("StyleNotes")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Medium");
-
-                    b.ToTable("VoiceConfigs");
-                });
-
-            modelBuilder.Entity("ZettelWeb.Models.VoiceExample", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(21)
-                        .HasColumnType("character varying(21)");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Medium")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Title")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Medium");
-
-                    b.ToTable("VoiceExamples");
-                });
-
             modelBuilder.Entity("ZettelWeb.Models.ChatMessage", b =>
                 {
                     b.HasOne("ZettelWeb.Models.ChatSession", null)
                         .WithMany("Messages")
                         .HasForeignKey("SessionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("ZettelWeb.Models.ContentPiece", b =>
-                {
-                    b.HasOne("ZettelWeb.Models.ContentGeneration", null)
-                        .WithMany("Pieces")
-                        .HasForeignKey("GenerationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -613,11 +431,6 @@ namespace ZettelWeb.Data.Migrations
             modelBuilder.Entity("ZettelWeb.Models.ChatSession", b =>
                 {
                     b.Navigation("Messages");
-                });
-
-            modelBuilder.Entity("ZettelWeb.Models.ContentGeneration", b =>
-                {
-                    b.Navigation("Pieces");
                 });
 
             modelBuilder.Entity("ZettelWeb.Models.Note", b =>

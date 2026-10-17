@@ -106,7 +106,6 @@ module "workers" {
   db_secret_arn               = module.secrets.db_secret_arn
   capture_queue_arn           = var.capture_queue_arn
   capture_queue_url           = var.capture_sqs_queue_url
-  content_generation_schedule = var.content_generation_schedule
   log_group_arn               = module.monitoring.workers_log_group_arn
 }
 

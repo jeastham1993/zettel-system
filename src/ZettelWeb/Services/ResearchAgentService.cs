@@ -61,9 +61,6 @@ public class ResearchAgentService : IResearchAgentService
         foreach (var cluster in overview.RichestClusters)
             opportunities.Add($"Deepen: cluster anchored by '{cluster.HubTitle}' ({cluster.NoteCount} notes)");
 
-        foreach (var seed in overview.NeverUsedAsSeeds.Take(3))
-            opportunities.Add($"Untapped: '{seed.Title}' ({seed.ConnectionCount} connections, never generated from)");
-
         var contextParts = new List<string>();
 
         if (sourceNoteId is not null)

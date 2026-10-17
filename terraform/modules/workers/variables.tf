@@ -36,10 +36,6 @@ variable "capture_queue_url" {
   default = ""
 }
 
-variable "content_generation_schedule" {
-  type = string
-}
-
 variable "log_group_arn" {
   type = string
 }

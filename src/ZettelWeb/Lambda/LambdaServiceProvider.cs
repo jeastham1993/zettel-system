@@ -13,7 +13,6 @@ using ZettelWeb.Background;
 using ZettelWeb.Data;
 using ZettelWeb.Models;
 using ZettelWeb.Services;
-using ZettelWeb.Services.Publishing;
 
 namespace ZettelWeb.Lambda;
 
@@ -97,26 +96,6 @@ internal static class LambdaServiceProvider
                 new OpenAIClient(apiKey).GetEmbeddingClient(embeddingModel).AsIEmbeddingGenerator());
         }
 
-        // ── Chat client (for ContentScheduleHandler) ─────────────
-        var cgProvider = configuration["ContentGeneration:Provider"] ?? "bedrock";
-        var cgModel = configuration["ContentGeneration:Model"]
-            ?? "anthropic.claude-3-5-sonnet-20241022-v2:0";
-
-        if (string.Equals(cgProvider, "bedrock", StringComparison.OrdinalIgnoreCase))
-        {
-            var cgRegion = configuration["ContentGeneration:Region"];
-            var bedrockClient = !string.IsNullOrEmpty(cgRegion)
-                ? new AmazonBedrockRuntimeClient(Amazon.RegionEndpoint.GetBySystemName(cgRegion))
-                : new AmazonBedrockRuntimeClient();
-            services.AddSingleton<IChatClient>(bedrockClient.AsIChatClient(cgModel));
-        }
-        else
-        {
-            var cgApiKey = configuration["ContentGeneration:ApiKey"] ?? "";
-            services.AddSingleton<IChatClient>(
-                new OpenAIClient(cgApiKey).GetChatClient(cgModel).AsIChatClient());
-        }
-
         // ── Services ────────────────────────────────────────────
         services.AddScoped<INoteService>(sp =>
             new NoteService(
@@ -125,24 +104,8 @@ internal static class LambdaServiceProvider
                 sp.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>(),
                 sp.GetRequiredService<ILogger<NoteService>>()));
 
-        services.AddScoped<ITopicDiscoveryService, TopicDiscoveryService>();
-        services.Configure<TopicDiscoveryOptions>(
-            configuration.GetSection("ContentGenerator:TopicDiscovery"));
-
-        services.AddScoped<IContentGenerationService, ContentGenerationService>();
-        services.Configure<ContentGenerationOptions>(
-            configuration.GetSection(ContentGenerationOptions.SectionName));
-
-        services.Configure<PublishingOptions>(
-            configuration.GetSection(PublishingOptions.SectionName));
-
         services.AddScoped<CaptureService>();
         services.Configure<CaptureConfig>(configuration.GetSection("Capture"));
-
-        services.AddHttpClient("GitHub", c => c.Timeout = TimeSpan.FromSeconds(15));
-        services.AddHttpClient("Publer", c => c.Timeout = TimeSpan.FromSeconds(30));
-        services.AddKeyedScoped<IPublishingService, GitHubPublishingService>("blog");
-        services.AddKeyedScoped<IPublishingService, PublerPublishingService>("social");
 
         // EmbeddingBackgroundService is registered as a regular (non-hosted) service
         // so Lambda handlers can resolve and call its public methods directly.

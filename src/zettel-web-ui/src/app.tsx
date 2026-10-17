@@ -16,12 +16,6 @@ const InboxPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/settings').then((m) => ({ default: m.SettingsPage })),
 )
-const ContentReviewPage = lazy(() =>
-  import('./pages/content-review').then((m) => ({ default: m.ContentReviewPage })),
-)
-const VoiceConfigPage = lazy(() =>
-  import('./pages/voice-config').then((m) => ({ default: m.VoiceConfigPage })),
-)
 const VoicePage = lazy(() =>
   import('./pages/voice').then((m) => ({ default: m.VoicePage })),
 )
@@ -70,26 +64,10 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: '/content',
-        element: (
-          <Suspense fallback={<LazyFallback />}>
-            <ContentReviewPage />
-          </Suspense>
-        ),
-      },
-      {
         path: '/voice',
         element: (
           <Suspense fallback={<LazyFallback />}>
             <VoicePage />
-          </Suspense>
-        ),
-      },
-      {
-        path: '/voice-config',
-        element: (
-          <Suspense fallback={<LazyFallback />}>
-            <VoiceConfigPage />
           </Suspense>
         ),
       },

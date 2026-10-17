@@ -57,8 +57,7 @@ public class KbHealthService : IKbHealthService
             return new KbHealthOverview(
                 new KbHealthScorecard(0, 0, 0, 0),
                 Array.Empty<UnconnectedNote>(),
-                Array.Empty<ClusterSummary>(),
-                Array.Empty<UnusedSeedNote>());
+                Array.Empty<ClusterSummary>());
         }
 
         var idToTitle = notes.ToDictionary(n => n.Id, n => n.Title);
@@ -143,19 +142,6 @@ public class KbHealthService : IKbHealthService
 
         // ── Clusters via union-find ────────────────────────────────────────
         var clusters = BuildClusters(notes.Select(n => n.Id).ToList(), adjacency, edgeCounts, idToTitle);
-
-        // ── Never-used seeds ───────────────────────────────────────────────
-        var usedSeedIds = await _db.UsedSeedNotes
-            .AsNoTracking()
-            .Select(u => u.NoteId)
-            .ToHashSetAsync();
-
-        var unusedSeeds = notes
-            .Where(n => n.EmbedStatus == EmbedStatus.Completed && !usedSeedIds.Contains(n.Id))
-            .OrderByDescending(n => edgeCounts.GetValueOrDefault(n.Id))
-            .Select(n => new UnusedSeedNote(n.Id, n.Title, edgeCounts.GetValueOrDefault(n.Id)))
-            .ToList();
-
         sw.Stop();
         ZettelTelemetry.KbHealthOverviewDuration.Record(sw.Elapsed.TotalMilliseconds);
         activity?.SetTag("kb_health.note_count", totalNotes);
@@ -168,8 +154,7 @@ public class KbHealthService : IKbHealthService
         return new KbHealthOverview(
             new KbHealthScorecard(totalNotes, embeddedPercent, orphans.Count, avgConnections),
             orphans,
-            clusters,
-            unusedSeeds);
+            clusters);
     }
 
     public async Task<IReadOnlyList<ConnectionSuggestion>> GetConnectionSuggestionsAsync(

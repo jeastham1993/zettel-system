@@ -147,12 +147,6 @@ export interface PagedResponse<T> {
   totalCount: number
 }
 
-export type ContentGenerationStatus = 'Pending' | 'Generated' | 'Approved' | 'Rejected'
-
-export type ContentPieceStatus = 'Draft' | 'Approved' | 'Rejected'
-
-export type ContentMedium = 'blog' | 'social'
-
 export type ChatSessionStatus = 'Active' | 'Archived'
 
 export type ChatMessageRole = 'User' | 'Assistant' | 'System'
@@ -206,57 +200,6 @@ export interface UpdateChatSessionRequest {
   status?: ChatSessionStatus
 }
 
-export interface SourceNoteInfo {
-  id: string
-  title: string
-  content: string
-}
-
-export interface ContentGeneration {
-  id: string
-  seedNoteId: string
-  clusterNoteIds: string[]
-  topicSummary: string
-  status: ContentGenerationStatus
-  generatedAt: string
-  reviewedAt: string | null
-  pieces?: ContentPiece[]
-  sourceNotes?: SourceNoteInfo[]
-}
-
-export interface ContentPiece {
-  id: string
-  generationId: string
-  medium: ContentMedium
-  title: string | null
-  body: string
-  status: ContentPieceStatus
-  sequence: number
-  createdAt: string
-  approvedAt: string | null
-  description: string | null
-  generatedTags: string[]
-  editorFeedback: string | null
-  sentToDraftAt: string | null
-  draftReference: string | null
-}
-
-export interface VoiceExample {
-  id: string
-  medium: string
-  title: string | null
-  content: string
-  source: string | null
-  createdAt: string
-}
-
-export interface VoiceConfig {
-  id: string
-  medium: string
-  styleNotes: string | null
-  updatedAt: string
-}
-
 export interface KbHealthScorecard {
   totalNotes: number
   embeddedPercent: number
@@ -277,17 +220,10 @@ export interface ClusterSummary {
   noteCount: number
 }
 
-export interface UnusedSeedNote {
-  id: string
-  title: string
-  connectionCount: number
-}
-
 export interface KbHealthOverview {
   scorecard: KbHealthScorecard
   newAndUnconnected: UnconnectedNote[]
   richestClusters: ClusterSummary[]
-  neverUsedAsSeeds: UnusedSeedNote[]
 }
 
 export interface ConnectionSuggestion {

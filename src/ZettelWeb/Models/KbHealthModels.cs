@@ -20,18 +20,11 @@ public record ClusterSummary(
     string HubTitle,
     int NoteCount);
 
-/// <summary>A permanent, embedded note that has never been used as a generation seed.</summary>
-public record UnusedSeedNote(
-    string Id,
-    string Title,
-    int ConnectionCount);
-
 /// <summary>Full KB health overview returned by the overview endpoint.</summary>
 public record KbHealthOverview(
     KbHealthScorecard Scorecard,
     IReadOnlyList<UnconnectedNote> NewAndUnconnected,
-    IReadOnlyList<ClusterSummary> RichestClusters,
-    IReadOnlyList<UnusedSeedNote> NeverUsedAsSeeds);
+    IReadOnlyList<ClusterSummary> RichestClusters);
 
 /// <summary>A semantically similar note suggested as a connection for an orphan.</summary>
 public record ConnectionSuggestion(

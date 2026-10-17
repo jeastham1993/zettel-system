@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router'
-import { Send, Plus, Archive, Trash2, RefreshCw, Loader2, MessageSquare, X } from 'lucide-react'
+import { Send, Plus, Archive, Trash2, RefreshCw, Loader2, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import {
   createChatSession,
@@ -18,7 +17,7 @@ import {
   regenerateChatResponse
 } from '@/api/chat'
 import { useNotes } from '@/hooks/use-notes'
-import type { ChatSession, ChatMessageResponse, ChatSessionStatus } from '@/api/types'
+import type { ChatSession, ChatMessageResponse } from '@/api/types'
 
 export function ChatPage() {
   const { sessionId } = useParams<{ sessionId?: string }>()
@@ -133,7 +132,13 @@ export function ChatPage() {
       
       // Replace the last assistant message
       const updatedMessages = [...messages]
-      const lastAssistantIndex = updatedMessages.findLastIndex(m => m.role === 'Assistant')
+      let lastAssistantIndex = -1
+      for (let i = updatedMessages.length - 1; i >= 0; i--) {
+        if (updatedMessages[i].role === 'Assistant') {
+          lastAssistantIndex = i
+          break
+        }
+      }
       if (lastAssistantIndex >= 0) {
         updatedMessages[lastAssistantIndex] = response
       } else {
@@ -256,7 +261,7 @@ export function ChatPage() {
             </div>
           </div>
         ) : (
-          <>{
+          <>
             {/* Chat Header */}
             <div className="border-b p-4 flex justify-between items-center">
               <div>
@@ -325,7 +330,7 @@ export function ChatPage() {
                 <Input
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                   placeholder="Type your message..."
                   disabled={isSending}
                 />

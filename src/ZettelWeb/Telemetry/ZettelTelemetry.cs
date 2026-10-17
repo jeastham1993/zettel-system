@@ -40,25 +40,6 @@ public static class ZettelTelemetry
         Meter.CreateHistogram<double>("zettel.searches.duration", "ms",
             "Time taken to execute a search");
 
-    public static readonly Counter<long> ContentGenerated =
-        Meter.CreateCounter<long>("zettel.content.generated", description: "Number of content generation runs");
-
-    public static readonly Counter<long> ScheduledGenerations =
-        Meter.CreateCounter<long>("zettel.content.scheduled_generations",
-            description: "Number of scheduled content generation runs");
-
-    public static readonly Counter<long> DraftsSent =
-        Meter.CreateCounter<long>("zettel.content.drafts_sent", description: "Number of pieces successfully sent to draft.");
-
-    public static readonly Counter<long> DraftSendFailures =
-        Meter.CreateCounter<long>("zettel.content.draft_send_failures", description: "Number of failed draft send attempts.");
-
-    public static readonly Counter<long> EditorFeedbackGenerated =
-        Meter.CreateCounter<long>("zettel.content.editor_feedback_generated", description: "Number of editor feedback passes completed.");
-
-    public static readonly Histogram<double> PublishingDurationMs =
-        Meter.CreateHistogram<double>("zettel.content.publishing_duration", "ms", "Duration of external publish calls in milliseconds.");
-
     public static readonly Counter<long> WikilinksInserted =
         Meter.CreateCounter<long>("zettel.kb_health.wikilinks_inserted", description: "Number of wikilinks inserted via the KB health dashboard.");
 

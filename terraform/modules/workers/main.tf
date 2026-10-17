@@ -166,49 +166,6 @@ resource "aws_lambda_event_source_mapping" "capture_queue" {
   enabled          = true
 }
 
-# ── Content Generation Scheduler Lambda ─────────────────────────────────────
-resource "aws_lambda_function" "content_schedule" {
-  function_name = "${var.app_name}-content-schedule"
-  role          = aws_iam_role.workers.arn
-  package_type  = "Image"
-  image_uri     = var.ecr_image_uri
-
-  image_config {
-    command = ["ZettelWeb::ZettelWeb.Lambda.ContentScheduleHandler::HandleAsync"]
-  }
-
-  memory_size = 256
-  timeout     = 900 # 15 minutes — LLM content generation can be slow
-
-  vpc_config {
-    subnet_ids         = var.subnet_ids
-    security_group_ids = [aws_security_group.lambda.id]
-  }
-
-  environment {
-    variables = {
-      ASPNETCORE_ENVIRONMENT = "Production"
-      APP_SECRETS_ARN        = var.secrets_arn
-    }
-  }
-
-  depends_on = [aws_iam_role_policy_attachment.vpc_access]
-}
-
-resource "aws_scheduler_schedule" "content_schedule" {
-  name       = "${var.app_name}-content-schedule"
-  group_name = "default"
-
-  flexible_time_window { mode = "OFF" }
-  schedule_expression = var.content_generation_schedule
-
-  target {
-    arn      = aws_lambda_function.content_schedule.arn
-    role_arn = aws_iam_role.scheduler.arn
-    input    = jsonencode({})
-  }
-}
-
 # ── Migration Lambda ──────────────────────────────────────────────────────────
 # Invoked once during terraform apply to run EF Core migrations.
 # Executed BEFORE the API Lambda image is updated to ensure the schema is ready.
@@ -277,7 +234,6 @@ resource "aws_iam_role_policy" "scheduler_invoke" {
       Action = "lambda:InvokeFunction"
       Resource = [
         aws_lambda_function.embedding_worker.arn,
-        aws_lambda_function.content_schedule.arn,
       ]
     }]
   })

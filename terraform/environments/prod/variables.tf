@@ -65,12 +65,6 @@ variable "capture_queue_arn" {
   default     = ""
 }
 
-variable "content_generation_schedule" {
-  description = "EventBridge cron expression for content generation (e.g. 'cron(0 9 ? * MON *)')"
-  type        = string
-  default     = "cron(0 9 ? * MON *)"
-}
-
 variable "alert_email" {
   description = "Email address for CloudWatch alarm notifications"
   type        = string

@@ -1,10 +1,9 @@
 # Zettel-Web
 
 A self-hostable Zettelkasten knowledge management app with AI-powered
-semantic search and automated content generation. Capture notes from
-the web, email, or Telegram, find connections between ideas using
-meaning-based search, and automatically generate blog posts and social
-media drafts from your knowledge graph.
+semantic search. Capture notes from the web, email, or Telegram, find
+connections between ideas using meaning-based search, and chat with
+your knowledge base.
 
 Built with ASP.NET Core, React, PostgreSQL + pgvector, and your choice
 of OpenAI, Ollama, or Amazon Bedrock.
@@ -22,10 +21,8 @@ of OpenAI, Ollama, or Amazon Bedrock.
 - [Configuration](#configuration)
   - [Required](#required)
   - [Embedding Provider](#embedding-provider)
-  - [Content Generation (LLM)](#content-generation-llm)
-  - [Content Generation Schedule](#content-generation-schedule)
   - [Telegram Notifications](#telegram-notifications-optional)
-  - [Publishing](#publishing-optional)
+  - [Chat LLM](#chat-llm)
   - [Research Agent](#research-agent-optional)
   - [Voice Assistant](#voice-assistant-optional)
   - [Optional: Fleeting Note Capture](#optional-fleeting-note-capture)
@@ -66,10 +63,6 @@ of OpenAI, Ollama, or Amazon Bedrock.
 - **OpenTelemetry** — Built-in tracing and metrics instrumentation
 - **Graceful degradation** — Falls back to full-text search if the
   embedding API is unavailable
-- **Automated content generation** — Independently scheduled pipeline
-  that mines your knowledge graph: blog posts on a weekly cadence,
-  social media drafts daily, both generated in your voice for human
-  review before publishing
 - **Autonomous research agent** — Analyses KB gaps and rich clusters,
   generates targeted search queries, fetches from Brave Search and
   Arxiv, synthesises findings with an LLM instruction barrier, and
@@ -187,9 +180,8 @@ Browser → Cognito Hosted UI (login)
         → CloudFront → API Gateway → Lambda (ASP.NET Core)
                                           ↓
                                Aurora Serverless v2 (PostgreSQL + pgvector)
-                               Bedrock (embeddings + content generation)
+                               Bedrock (embeddings + chat LLM)
 EventBridge → EmbeddingWorker Lambda  (every 60s)
-EventBridge → ContentSchedule Lambda  (blog: weekly, social: daily)
 SQS         → CaptureWorker Lambda    (email / Telegram capture)
 ```
 
@@ -199,7 +191,7 @@ SQS         → CaptureWorker Lambda    (email / Telegram capture)
 - [Terraform](https://developer.hashicorp.com/terraform/install) ≥ 1.7
 - AWS Bedrock model access enabled for:
   - `amazon.titan-embed-text-v2:0` (embeddings)
-  - `anthropic.claude-3-5-sonnet-20241022-v2:0` (content generation)
+  - `anthropic.claude-3-5-sonnet-20241022-v2:0` (chat / KB health LLM)
 
 #### Step 1 — Bootstrap the Terraform state backend
 
@@ -441,11 +433,12 @@ AWS_SECRET_ACCESS_KEY=...
 | `Embedding__MaxInputCharacters` | `4000`                   | Max text length before truncation    |
 | `Embedding__MaxRetries`         | `3`                      | Retry count for failed embeddings    |
 
-### Content Generation (LLM)
+### Chat LLM
 
-Content generation uses a separate chat/completion LLM, independent of
-the embedding provider. It generates blog posts and social media drafts
-from your notes.
+The chat assistant, research agent, and KB Health summarization share
+a single chat/completion LLM, independent of the embedding provider.
+The config keys live under the `ContentGeneration` section (kept from
+the former content generation feature for backward compatibility).
 
 #### Option A: OpenAI
 
@@ -466,110 +459,12 @@ CONTENTGENERATION__REGION=us-east-1
 Bedrock uses the ambient AWS credentials from the environment
 (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` or an IAM role).
 
-#### All Content Generation Options
-
-| Variable                               | Default    | Description                                         |
-| -------------------------------------- | ---------- | --------------------------------------------------- |
-| `ContentGeneration__Provider`          | `openai`   | `openai` or `bedrock`                               |
-| `ContentGeneration__Model`             | `gpt-4o`   | Model identifier                                    |
-| `ContentGeneration__ApiKey`            | (required) | API key — OpenAI only                               |
-| `ContentGeneration__Region`            | (empty)    | AWS region — Bedrock only                           |
-| `ContentGeneration__MaxTokens`         | `4096`     | Max output tokens per generation call               |
-| `ContentGeneration__Temperature`       | `0.7`      | Sampling temperature                                |
-| `ContentGeneration__MaxClusterSize`    | `10`       | Max notes included in a topic cluster               |
-| `ContentGeneration__MinClusterSize`    | `3`        | Min notes required; triggers retry if not met       |
-| `ContentGeneration__MaxSeedRetries`    | `3`        | Max seed selection retries for thin topics          |
-| `ContentGeneration__SemanticThreshold` | `0.75`     | Cosine similarity threshold for related notes       |
-| `ContentGeneration__SocialPostCount`   | `3`        | Number of social posts generated per scheduled run  |
-
-### Content Generation Schedule
-
-Blog posts and social media drafts run on **independent schedules** —
-both are disabled by default. Enable each separately (UTC times).
-
-#### Blog posts (weekly)
-
-```bash
-ContentGeneration__Schedule__Blog__Enabled=true
-ContentGeneration__Schedule__Blog__DayOfWeek=Monday
-ContentGeneration__Schedule__Blog__TimeOfDay=09:00
-```
-
-| Variable                                        | Default  | Description                              |
-| ----------------------------------------------- | -------- | ---------------------------------------- |
-| `ContentGeneration__Schedule__Blog__Enabled`    | `false`  | Set to `true` to enable weekly blog runs |
-| `ContentGeneration__Schedule__Blog__DayOfWeek`  | `Monday` | Day to run (`Monday`–`Sunday`)           |
-| `ContentGeneration__Schedule__Blog__TimeOfDay`  | `09:00`  | Time to run in UTC (`HH:mm`)             |
-
-#### Social posts (daily)
-
-```bash
-ContentGeneration__Schedule__Social__Enabled=true
-ContentGeneration__Schedule__Social__TimeOfDay=09:00
-```
-
-| Variable                                          | Default | Description                               |
-| ------------------------------------------------- | ------- | ----------------------------------------- |
-| `ContentGeneration__Schedule__Social__Enabled`    | `false` | Set to `true` to enable daily social runs |
-| `ContentGeneration__Schedule__Social__TimeOfDay`  | `09:00` | Time to run in UTC (`HH:mm`)              |
-
-In the AWS deployment, the schedule is managed by EventBridge rules.
-Create two separate rules pointing to the `ContentSchedule` Lambda —
-one with input `{"Medium":"blog"}` on a weekly cron and one with
-`{"Medium":"social"}` on a daily cron. The
-`ContentGeneration__Schedule__*` environment variables are not used
-in the AWS deployment.
-
-Generation can also be triggered manually at any time via
-`POST /api/content/generate`.
-
-### Publishing (optional)
-
-Once a piece has been approved in Content Review, it can be sent to a
-publishing destination as a draft. Each medium has its own service:
-
-- **Blog posts** → GitHub repository (creates an Astro-compatible
-  markdown file in your content directory as a draft)
-- **Social posts** → Publer (creates a scheduled draft post)
-
-Both services are optional and independently configured.
-
-#### Blog posts → GitHub
-
-```bash
-Publishing__GitHub__Token=ghp_...
-Publishing__GitHub__Owner=your-github-username
-Publishing__GitHub__Repo=your-blog-repo
-```
-
-| Variable                          | Default            | Description                                        |
-| --------------------------------- | ------------------ | -------------------------------------------------- |
-| `Publishing__GitHub__Token`       | (required)         | GitHub personal access token with `contents:write` |
-| `Publishing__GitHub__Owner`       | (required)         | GitHub username or organisation                    |
-| `Publishing__GitHub__Repo`        | (required)         | Repository name                                    |
-| `Publishing__GitHub__Branch`      | `main`             | Branch to commit the draft file to                 |
-| `Publishing__GitHub__ContentPath` | `src/content/blog` | Path within the repo where `.md` files are written |
-| `Publishing__GitHub__Author`      | `James Eastham`    | `author:` field in the generated YAML front matter |
-
-Files are written as `{ContentPath}/{date}-{slug}-{id[:8]}.md` with
-Astro-compatible YAML front matter (`draft: true`, `pubDatetime`,
-`title`, `description`, `tags`).
-
-#### Social posts → Publer
-
-```bash
-Publishing__Publer__ApiKey=publer_api_...
-Publishing__Publer__Accounts__0__Id=123456
-Publishing__Publer__Accounts__0__Platform=linkedin
-```
-
-| Variable                                    | Default     | Description                                              |
-| ------------------------------------------- | ----------- | -------------------------------------------------------- |
-| `Publishing__Publer__ApiKey`                | (required)  | Publer API key (Settings → API in your Publer workspace) |
-| `Publishing__Publer__Accounts__0__Id`       | (required)  | Publer account ID for the first social account           |
-| `Publishing__Publer__Accounts__0__Platform` | `linkedin`  | Platform key: `linkedin`, `twitter`, `bluesky`, etc.    |
-
-Add more accounts by incrementing the index: `Publishing__Publer__Accounts__1__Id`, etc.
+| Variable                      | Default    | Description               |
+| ----------------------------- | ---------- | ------------------------- |
+| `ContentGeneration__Provider` | `openai`   | `openai` or `bedrock`     |
+| `ContentGeneration__Model`    | `gpt-4o`   | Model identifier         |
+| `ContentGeneration__ApiKey`   | (required) | API key — OpenAI only     |
+| `ContentGeneration__Region`   | (empty)    | AWS region — Bedrock only |
 
 ### Research Agent (optional)
 
@@ -592,8 +487,9 @@ UI for accept (→ fleeting note) or dismiss.
 | `Research__MaxFindingsPerRun`         | `5`     | Maximum findings created per research run                            |
 | `Research__DeduplicationThreshold`   | `0.85`  | Cosine similarity threshold — results above this are skipped as near-duplicates of existing notes |
 
-The agent reuses the same `ContentGeneration` LLM provider for agenda
-generation and synthesis. No additional LLM configuration is needed.
+The agent reuses the same LLM provider configuration (the
+`ContentGeneration` section keys) for agenda generation and synthesis.
+No additional LLM configuration is needed.
 
 ### Voice Assistant (optional)
 
@@ -786,8 +682,8 @@ service is needed.
                ┌────▼─────┐    ┌─────────▼──┐   ┌──────────▼──────┐
                │PostgreSQL │    │ Embedding  │   │ Chat LLM        │
                │+ pgvector │    │ (OpenAI /  │   │ (OpenAI/Bedrock)│
-               └───────────┘    │  Ollama /  │   │ content gen     │
-                                │  Bedrock)  │   └─────────────────┘
+               └───────────┘    │  Ollama /  │   └─────────────────┘
+                                │  Bedrock)  │
                                 └────────────┘
 ```
 
@@ -809,13 +705,12 @@ Browser → Cognito Hosted UI (login) → access token
               └────────────┘   └────────────┘
 
 EventBridge (60s) ──▶ EmbeddingWorker Lambda
-EventBridge (cron) ─▶ ContentSchedule Lambda
 SQS event source ───▶ CaptureWorker Lambda
 Terraform apply ────▶ Migration Lambda (once per deploy)
 ```
 
-The backend runs three background workers in Docker Compose (in-process)
-and three separate Lambda functions in the AWS deployment. The service
+The backend runs two background workers in Docker Compose (in-process)
+and two separate Lambda functions in the AWS deployment. The service
 logic is identical in both cases — only the hosting differs.
 
 ---
@@ -855,24 +750,6 @@ logic is identical in both cases — only the hosting differs.
 | `POST` | `/api/import` | Import markdown files (JSON array) |
 | `GET`  | `/api/export` | Download all notes as ZIP          |
 
-### Content Generation
-
-| Method   | Endpoint                                 | Description                                             |
-| -------- | ---------------------------------------- | ------------------------------------------------------- |
-| `POST`   | `/api/content/generate`                  | Trigger a manual generation run                         |
-| `GET`    | `/api/content/generations`               | List generation runs (paginated)                        |
-| `GET`    | `/api/content/generations/{id}`          | Get a run with its content pieces                       |
-| `GET`    | `/api/content/pieces`                    | List pieces (filter by `medium`, `status`)              |
-| `GET`    | `/api/content/pieces/{id}`               | Get a single piece                                      |
-| `PUT`    | `/api/content/pieces/{id}/approve`       | Approve a piece                                         |
-| `PUT`    | `/api/content/pieces/{id}/reject`        | Reject a piece                                          |
-| `POST`   | `/api/content/pieces/{id}/send-to-draft` | Send approved piece to GitHub (blog) or Publer (social) |
-| `GET`    | `/api/content/pieces/{id}/export`        | Download piece as a `.md` file                          |
-| `PUT`    | `/api/content/pieces/{id}/description`   | Update piece description                                |
-| `PUT`    | `/api/content/pieces/{id}/tags`          | Update piece tags                                       |
-| `GET`    | `/api/content/schedule`                  | Get per-type schedule settings (blog + social)          |
-| `PUT`    | `/api/content/schedule/blog`             | Update blog schedule settings                           |
-| `PUT`    | `/api/content/schedule/social`           | Update social schedule settings                         |
 
 ### Voice Configuration
 

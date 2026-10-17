@@ -20,8 +20,7 @@ using ZettelWeb.Data;
 using ZettelWeb.Health;
 using ZettelWeb.Models;
 using ZettelWeb.Services;
-using ZettelWeb.Services.Publishing;
-using Microsoft.Extensions.Options;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -110,9 +109,6 @@ builder.Services.AddScoped<IKbHealthService, KbHealthService>();
 builder.Services.Configure<CaptureConfig>(builder.Configuration.GetSection("Capture"));
 builder.Services.AddScoped<CaptureService>();
 builder.Services.AddScoped<IDiscoveryService, DiscoveryService>();
-builder.Services.Configure<TopicDiscoveryOptions>(
-    builder.Configuration.GetSection("ContentGenerator:TopicDiscovery"));
-builder.Services.AddScoped<ITopicDiscoveryService, TopicDiscoveryService>();
 builder.Services.AddScoped<ISearchService>(sp =>
     new SearchService(
         sp.GetRequiredService<ZettelDbContext>(),
@@ -187,10 +183,9 @@ if (!isLambda)
     builder.Services.AddHostedService<EnrichmentBackgroundService>();
 }
 
-// ── Content Generation LLM (IChatClient) ─────────────────────
-builder.Services.Configure<ContentGenerationOptions>(
-    builder.Configuration.GetSection(ContentGenerationOptions.SectionName));
-
+// ── LLM chat client (IChatClient) — used by Chat and KB Health. ──
+// Note: config keys remain under the ContentGeneration: section for
+// backward compatibility with deployed environment configuration.
 var cgProvider = builder.Configuration["ContentGeneration:Provider"] ?? "bedrock";
 var cgModel = builder.Configuration["ContentGeneration:Model"]
     ?? "anthropic.claude-3-5-sonnet-20241022-v2:0";
@@ -210,16 +205,6 @@ else
         new OpenAIClient(cgApiKey).GetChatClient(cgModel).AsIChatClient());
 }
 
-builder.Services.AddScoped<IContentGenerationService, ContentGenerationService>();
-
-// ── Publishing services ────────────────────────────────────
-builder.Services.Configure<PublishingOptions>(
-    builder.Configuration.GetSection(PublishingOptions.SectionName));
-builder.Services.AddHttpClient("GitHub", c => c.Timeout = TimeSpan.FromSeconds(15));
-builder.Services.AddHttpClient("Publer", c => c.Timeout = TimeSpan.FromSeconds(30));
-builder.Services.AddKeyedScoped<IPublishingService, GitHubPublishingService>("blog");
-builder.Services.AddKeyedScoped<IPublishingService, PublerPublishingService>("social");
-
 // ── Telegram outbound notifications ───────────────────────
 var telegramToken = builder.Configuration["Capture:TelegramBotToken"];
 if (!string.IsNullOrEmpty(telegramToken))
@@ -230,23 +215,6 @@ if (!string.IsNullOrEmpty(telegramToken))
 else
 {
     builder.Services.AddSingleton<ITelegramNotifier, NullTelegramNotifier>();
-}
-
-if (!isLambda)
-{
-    if (string.Equals(
-        builder.Configuration["ContentGeneration:Schedule:Blog:Enabled"], "true",
-        StringComparison.OrdinalIgnoreCase))
-    {
-        builder.Services.AddHostedService<BlogContentScheduler>();
-    }
-
-    if (string.Equals(
-        builder.Configuration["ContentGeneration:Schedule:Social:Enabled"], "true",
-        StringComparison.OrdinalIgnoreCase))
-    {
-        builder.Services.AddHostedService<SocialContentScheduler>();
-    }
 }
 
 var sqsQueueUrl = builder.Configuration["Capture:SqsQueueUrl"];
@@ -329,18 +297,6 @@ if (!isLambda)
 #pragma warning restore EF1003
     }
 }
-
-var publishingOpts = app.Services.GetRequiredService<IOptions<PublishingOptions>>().Value;
-var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
-startupLogger.LogInformation(
-    "Publishing — GitHub configured: {GitHub} (token present: {Token}, owner: '{Owner}', repo: '{Repo}'), Publer configured: {Publer} (key present: {Key}, accounts: {Accounts})",
-    publishingOpts.GitHub.IsConfigured,
-    !string.IsNullOrEmpty(publishingOpts.GitHub.Token),
-    publishingOpts.GitHub.Owner,
-    publishingOpts.GitHub.Repo,
-    publishingOpts.Publer.IsConfigured,
-    !string.IsNullOrEmpty(publishingOpts.Publer.ApiKey),
-    publishingOpts.Publer.Accounts.Count);
 
 app.UseCors();
 app.UseRateLimiter();
