@@ -2,6 +2,18 @@
 
 Last Updated: 2026-10-17
 
+## 1.2.1 - 2026-10-17
+
+### Fixed
+- Backend no longer crashes at startup when no OpenAI API key is
+  configured. The chat LLM now defaults to Ollama (OpenAI-compatible
+  endpoint), reusing `Embedding:OllamaUrl` unless
+  `ContentGeneration:OllamaUrl` is set. Default model `llama3.1`.
+- Explicit startup error (with guidance) instead of a raw
+  `ArgumentException` when `ContentGeneration:ApiKey` is empty with
+  provider `openai`, or when the removed `bedrock` provider is
+  requested.
+
 ## 1.2.0 - 2026-10-17
 
 ### Removed

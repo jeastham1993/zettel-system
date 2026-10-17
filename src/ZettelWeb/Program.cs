@@ -154,15 +154,47 @@ builder.Services.AddSingleton<IResearchExecutionQueue, ChannelResearchExecutionQ
 builder.Services.AddHostedService<ResearchExecutionBackgroundService>();
 builder.Services.AddHostedService<EnrichmentBackgroundService>();
 
-// ── LLM chat client (IChatClient) — used by Chat and KB Health. ──
+// ── LLM chat client (IChatClient) — used by Chat, Research, and KB Health. ──
 // Note: config keys remain under the ContentGeneration: section for
 // backward compatibility with deployed environment configuration.
-var cgProvider = builder.Configuration["ContentGeneration:Provider"] ?? "openai";
-var cgModel = builder.Configuration["ContentGeneration:Model"] ?? "gpt-4o";
+// Providers: "ollama" (local, default — uses Ollama's OpenAI-compatible
+// endpoint; URL defaults to Embedding:OllamaUrl) or "openai" (cloud,
+// requires ContentGeneration:ApiKey).
+var cgProvider = builder.Configuration["ContentGeneration:Provider"] ?? "ollama";
+var cgModel = builder.Configuration["ContentGeneration:Model"] ?? "llama3.1";
 
-var cgApiKey = builder.Configuration["ContentGeneration:ApiKey"] ?? "";
-builder.Services.AddSingleton<IChatClient>(
-    new OpenAIClient(cgApiKey).GetChatClient(cgModel).AsIChatClient());
+if (string.Equals(cgProvider, "bedrock", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        "ContentGeneration:Provider 'bedrock' is no longer supported (AWS support was removed). " +
+        "Use 'ollama' (local) or 'openai' instead.");
+}
+
+if (string.Equals(cgProvider, "ollama", StringComparison.OrdinalIgnoreCase))
+{
+    var chatOllamaUrl =
+        (builder.Configuration["ContentGeneration:OllamaUrl"] is { Length: > 0 } cgOllamaUrl ? cgOllamaUrl : null)
+        ?? (builder.Configuration["Embedding:OllamaUrl"] is { Length: > 0 } embOllamaUrl ? embOllamaUrl : null)
+        ?? "http://localhost:11434";
+    builder.Services.AddSingleton<IChatClient>(
+        new OpenAIClient(
+            new System.ClientModel.ApiKeyCredential("ollama"),
+            new OpenAIClientOptions { Endpoint = new Uri(new Uri(chatOllamaUrl), "/v1") })
+        .GetChatClient(cgModel).AsIChatClient());
+}
+else
+{
+    var cgApiKey = builder.Configuration["ContentGeneration:ApiKey"];
+    if (string.IsNullOrWhiteSpace(cgApiKey))
+    {
+        throw new InvalidOperationException(
+            "ContentGeneration:ApiKey is required when the chat LLM provider is 'openai'. " +
+            "Set CONTENTGENERATION__APIKEY, or switch to the local Ollama provider with " +
+            "CONTENTGENERATION__PROVIDER=ollama (pull a chat model first, e.g. 'ollama pull llama3.1').");
+    }
+    builder.Services.AddSingleton<IChatClient>(
+        new OpenAIClient(cgApiKey).GetChatClient(cgModel).AsIChatClient());
+}
 
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database")

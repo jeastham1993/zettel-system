@@ -208,7 +208,19 @@ a single chat/completion LLM, independent of the embedding provider.
 The config keys live under the `ContentGeneration` section (kept from
 the former content generation feature for backward compatibility).
 
-#### Option A: OpenAI
+#### Option A: Ollama (default)
+
+Uses Ollama's OpenAI-compatible endpoint. Pull a chat model first:
+
+```bash
+ollama pull llama3.1
+```
+
+The URL defaults to the same value as `Embedding__OllamaUrl`
+(`http://host.docker.internal:11434` in Docker), so a zero-config
+setup alongside Ollama embeddings just works.
+
+#### Option B: OpenAI
 
 ```bash
 CONTENTGENERATION__PROVIDER=openai
@@ -216,11 +228,12 @@ CONTENTGENERATION__MODEL=gpt-4o
 CONTENTGENERATION__APIKEY=sk-...
 ```
 
-| Variable                      | Default    | Description               |
-| ----------------------------- | ---------- | ------------------------- |
-| `ContentGeneration__Provider` | `openai`   | `openai`                  |
-| `ContentGeneration__Model`    | `gpt-4o`   | Model identifier         |
-| `ContentGeneration__ApiKey`   | (required) | OpenAI API key           |
+| Variable                        | Default              | Description                                |
+| ------------------------------- | -------------------- | ------------------------------------------ |
+| `ContentGeneration__Provider`   | `ollama`             | `ollama` or `openai`                       |
+| `ContentGeneration__Model`       | `llama3.1`           | Model identifier                           |
+| `ContentGeneration__ApiKey`     | (empty)              | OpenAI API key — required for `openai`     |
+| `ContentGeneration__OllamaUrl`  | = `Embedding__OllamaUrl` | Ollama endpoint — `ollama` provider only |
 
 ### Research Agent (optional)
 
@@ -281,7 +294,7 @@ No additional LLM configuration is needed.
                     │                     │                  │
                ┌────▼─────┐    ┌─────────▼──┐   ┌──────────▼──────┐
                │PostgreSQL │    │ Embedding  │   │ Chat LLM        │
-               │+ pgvector │    │ (OpenAI /  │   │ (OpenAI)        │
+               │+ pgvector │    │ (OpenAI /  │   │ (OpenAI/Ollama) │
                └───────────┘    │  Ollama)   │   └─────────────────┘
                                 └────────────┘
 ```
