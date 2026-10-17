@@ -358,7 +358,8 @@ public class ChatService : IChatService
 
     private string BuildPrompt(ChatSession session, Models.ChatMessage userMessage, string contextText)
     {
-        return $$$"""
+        // Note: $$ raw string — interpolation delimiters are {{ }}, matching the placeholders below.
+        return $$"""
         You are an intelligent assistant helping a user interact with their personal knowledge base. 
         Use the provided context from their notes to answer questions, provide insights, and engage in meaningful conversation.
 

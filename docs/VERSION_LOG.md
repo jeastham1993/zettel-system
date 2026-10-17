@@ -2,6 +2,15 @@
 
 Last Updated: 2026-10-17
 
+## 1.2.3 - 2026-10-17
+
+### Fixed
+- Chat sent the raw prompt template to the LLM with unsubstituted
+  `{{contextText}}` / history / user-message placeholders — the feature
+  had never worked. `BuildPrompt` used a `$$$` raw string where the
+  template's double-brace placeholders are literal text; changed to
+  `$$` so they interpolate. Added regression tests (BUG-008).
+
 ## 1.2.2 - 2026-10-17
 
 ### Added

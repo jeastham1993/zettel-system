@@ -1,6 +1,7 @@
 # Bug Reference
 
-Last Updated: 2026-02-14 | v0.1
+Last Updated: 2026-10-17 | v1.2.3
+
 
 ## BUG-001: Backend crash on startup — column "Status" does not exist
 
@@ -125,3 +126,32 @@ embedding arrays.
 **Prevention**: Always use `AsNoTracking()` for read-only queries,
 especially when loading large collections or entities with heavy
 payloads like embeddings.
+
+## BUG-008: Chat sent raw prompt template with unsubstituted placeholders
+
+**Date**: 2026-10-17
+**Severity**: Critical (chat feature never worked)
+
+**Symptom**: The assistant's chat replies complained about unfilled
+template placeholders: the LLM literally received
+`{{contextText}}`, `{{GetConversationHistory(session, userMessage)}}`,
+and `{{userMessage.Content}}` as text.
+
+**Root Cause**: `ChatService.BuildPrompt` used a `$$$` raw string
+literal. With `$$$`, interpolation delimiters are `{{{ }}}` (triple
+braces) — the double-brace placeholders in the template were literal
+text, so no substitution ever happened. The template shipped unnoticed
+because the chat frontend (`chat.tsx`) was simultaneously broken and
+failed type-check, and no test covered prompt construction.
+
+**Fix**: Changed the literal to `$$`, making `{{expr}}` the
+interpolation delimiter — the placeholders now render. Added
+`ChatServicePromptTests` regression tests asserting the user message,
+context text, and conversation history appear in the prompt and no
+`{{...}}` placeholders remain.
+
+**Prevention**: In C# raw strings, the number of `$` characters sets
+the number of braces used for interpolation. Mismatched `$` count vs
+brace count silently produces literal text, not an error. Grep new
+prompt templates for `{{` before shipping, and unit-test prompt
+construction against a fake LLM.
