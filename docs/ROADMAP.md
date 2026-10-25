@@ -72,4 +72,4 @@ with pgvector for semantic search.
   & Sources
 - [ADR-006](adr/ADR-006-opentelemetry-observability.md): OpenTelemetry
   Observability
-- [ADR-007](adr/ADR-007-mobile-app-strategy.md): Mobile App Strategy
+- [ADR-007](adr/ADR-007-mobile-app-strategy.md): Mobile App Strategy (superseded — mobile app removed 2026-10; the web UI PWA serves mobile)

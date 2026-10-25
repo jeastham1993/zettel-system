@@ -6,10 +6,8 @@
 |------|---------|-------------|
 | Docker & Docker Compose | 20.10+ / 2.0+ | Database, full stack |
 | .NET SDK | 10.0 | Backend |
-| Node.js | 18+ (22 recommended) | Frontend, mobile |
-| npm | Latest | Frontend, mobile |
-| Xcode | Latest (macOS only) | iOS mobile builds |
-| Android Studio or SDK | Latest | Android mobile builds |
+| Node.js | 18+ (22 recommended) | Frontend |
+| npm | Latest | Frontend |
 | Ollama | Latest | Local embeddings (optional) |
 
 ## Architecture Overview
@@ -35,8 +33,8 @@
    └──────────┘ └────────┘ └──────────┘
 
    ┌────────────────┐
-   │ React Native   │  Connects to API
-   │ (Expo) Mobile  │  over LAN/VPN
+   │   PWA / mobile │  Installable web app
+   │    browsers     │  (service worker + manifest)
    └────────────────┘
 ```
 
@@ -44,7 +42,6 @@
 
 - **Backend** (`src/ZettelWeb/`) -- ASP.NET Core 10 Web API
 - **Frontend** (`src/zettel-web-ui/`) -- React 19 SPA with Vite, Tailwind v4, Tiptap editor
-- **Mobile** (`src/zettel-mobile/`) -- React Native with Expo SDK 54, Expo Router v4
 - **Database** -- PostgreSQL 17 with pgvector extension
 - **Infrastructure** (`infra/`) -- Optional AWS CDK stack for SQS/Telegram ingestion
 
@@ -140,24 +137,10 @@ The dev server runs on http://localhost:5173 with hot module replacement. It pro
 
 **Ensure the backend is running** before starting the frontend.
 
-### Mobile App
+### Mobile
 
-```bash
-cd src/zettel-mobile
-npm install
-npx expo start
-```
-
-The interactive menu gives you options:
-
-| Key | Action |
-|-----|--------|
-| `i` | Open in iOS Simulator (requires Xcode) |
-| `a` | Open in Android Emulator (requires Android Studio) |
-| `w` | Open in web browser |
-| `r` | Reload the app |
-
-**On a physical device:** Install [Expo Go](https://expo.dev/go) and scan the QR code from the terminal.
+The web UI is an installable PWA — on iOS/Android use "Add to Home Screen"
+for a standalone app experience. No separate mobile app is needed.
 
 **Connecting to the backend:** On first launch, the app shows a "Connect to Server" screen. Enter the backend URL:
 
@@ -223,22 +206,13 @@ cd src/zettel-web-ui
 npm run lint
 ```
 
-### Mobile
+### PWA
 
-No automated test suite yet. Test manually on real devices:
+Verify the app remains installable and works offline:
 
-```bash
-cd src/zettel-mobile
-npx expo start
-```
-
-Key flows to verify:
-- Quick capture (online and offline)
-- Search (hybrid, fulltext, semantic)
-- Inbox management (promote, delete via swipe)
-- Note detail rendering (HTML from Tiptap)
-- Settings (server URL change, theme toggle)
-- Offline queue sync on reconnect
+- Lighthouse PWA audit passes (installable: manifest + service worker + icons)
+- "Add to Home Screen" on iOS and Android launches standalone
+- Offline: app shell loads and cached pages render (API data needs connectivity)
 
 ## Project Structure
 
@@ -249,7 +223,7 @@ zettel-system/
 │   │   ├── Controllers/           # API endpoints
 │   │   ├── Services/              # Business logic
 │   │   ├── Data/                  # EF Core context + migrations
-│   │   ├── Background/            # Embedding, enrichment, SQS workers
+│   │   ├── Background/            # Embedding, enrichment, research workers
 │   │   ├── Health/                # Health check endpoints
 │   │   └── Program.cs             # DI setup, middleware, startup
 │   │
@@ -265,25 +239,10 @@ zettel-system/
 │   │   │   ├── hooks/             # React Query hooks
 │   │   │   └── api/               # TypeScript API client
 │   │   └── vite.config.ts
-│   │
-│   └── zettel-mobile/             # React Native mobile app
-│       ├── app/                   # Expo Router screens
-│       │   ├── (tabs)/            # Tab screens (Home, Search, Inbox, Settings)
-│       │   ├── capture.tsx        # Quick capture modal
-│       │   ├── connect.tsx        # Server connection setup
-│       │   └── note/[id]/         # Note detail + edit
-│       └── src/
-│           ├── api/               # HTTP client + endpoint functions
-│           ├── components/        # Native UI components
-│           ├── hooks/             # TanStack Query hooks + utilities
-│           ├── stores/            # MMKV persistence (offline queue, prefs)
-│           ├── theme/             # Colors + typography
-│           └── lib/               # Markdown, date utilities
 │
-├── infra/                         # AWS CDK (optional SQS ingestion)
 ├── docs/
 │   ├── adr/                       # Architecture Decision Records
-│   └── design-mobile-app.md       # Mobile app design document
+│   └── compound/                  # Categorized learnings index
 │
 ├── docker-compose.yml             # Full stack (Traefik + all services)
 ├── docker-compose.dev.yml         # Database only (for local dev)
