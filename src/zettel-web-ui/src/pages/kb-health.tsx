@@ -16,6 +16,7 @@ import {
   Scissors,
   Split,
   Telescope,
+  Copy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -582,13 +583,13 @@ export function KbHealthPage() {
               label="Orphans"
               value={scorecard?.orphanCount ?? 0}
               icon={Unlink}
-              sub="last 30 days"
+              sub="unlinked, last 30 days"
             />
             <ScoreCard
               label="Avg links"
               value={scorecard?.averageConnections ?? 0}
               icon={Network}
-              sub="per note"
+              sub={`wiki ${scorecard?.averageWikiLinks ?? 0} · semantic ${scorecard?.averageSemanticLinks ?? 0}`}
             />
           </>
         )}
@@ -694,6 +695,57 @@ export function KbHealthPage() {
                   </li>
                 ))}
               </ol>
+            )}
+          </section>
+
+          {/* Likely Duplicates */}
+          <section>
+            <div className="mb-3 flex items-center gap-2">
+              <Copy className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-medium">Likely Duplicates</h2>
+              {overview && (
+                <Badge variant="secondary" className="ml-auto">
+                  {overview.duplicates.length}
+                </Badge>
+              )}
+            </div>
+
+            {isLoading && <Skeleton className="h-32 w-full rounded-lg" />}
+
+            {!isLoading && overview?.duplicates.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No near-identical notes detected.
+              </p>
+            )}
+
+            {!isLoading && (
+              <ul className="space-y-1.5">
+                {overview?.duplicates.map((pair) => (
+                  <li
+                    key={`${pair.firstNoteId}-${pair.secondNoteId}`}
+                    className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-card px-3 py-2 text-sm"
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <Link
+                        to={`/notes/${pair.firstNoteId}`}
+                        className="truncate font-medium hover:underline"
+                      >
+                        {pair.firstTitle}
+                      </Link>
+                      <span className="shrink-0 text-xs text-muted-foreground">↔</span>
+                      <Link
+                        to={`/notes/${pair.secondNoteId}`}
+                        className="truncate font-medium hover:underline"
+                      >
+                        {pair.secondTitle}
+                      </Link>
+                    </div>
+                    <Badge variant="secondary" className="shrink-0">
+                      {(pair.similarity * 100).toFixed(0)}% match
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
 

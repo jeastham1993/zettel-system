@@ -5,7 +5,9 @@ public record KbHealthScorecard(
     int TotalNotes,
     int EmbeddedPercent,
     int OrphanCount,
-    double AverageConnections);
+    double AverageConnections,
+    double AverageWikiLinks,
+    double AverageSemanticLinks);
 
 /// <summary>A permanent note added in the last 30 days with no connections.</summary>
 public record UnconnectedNote(
@@ -20,11 +22,20 @@ public record ClusterSummary(
     string HubTitle,
     int NoteCount);
 
+/// <summary>A pair of notes whose embeddings are near-identical — likely duplicates.</summary>
+public record DuplicatePair(
+    string FirstNoteId,
+    string FirstTitle,
+    string SecondNoteId,
+    string SecondTitle,
+    double Similarity);
+
 /// <summary>Full KB health overview returned by the overview endpoint.</summary>
 public record KbHealthOverview(
     KbHealthScorecard Scorecard,
     IReadOnlyList<UnconnectedNote> NewAndUnconnected,
-    IReadOnlyList<ClusterSummary> RichestClusters);
+    IReadOnlyList<ClusterSummary> RichestClusters,
+    IReadOnlyList<DuplicatePair> Duplicates);
 
 /// <summary>A semantically similar note suggested as a connection for an orphan.</summary>
 public record ConnectionSuggestion(

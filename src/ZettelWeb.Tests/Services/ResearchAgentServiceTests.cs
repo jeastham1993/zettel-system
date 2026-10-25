@@ -44,9 +44,10 @@ public class ResearchAgentServiceTests
     private sealed class FakeKbHealthService : IKbHealthService
     {
         public KbHealthOverview Overview { get; set; } = new(
-            new KbHealthScorecard(5, 80, 1, 2.0),
+            new KbHealthScorecard(5, 80, 1, 2.0, 1.5, 0.5),
             [new UnconnectedNote("orphan1", "Orphan Note", DateTime.UtcNow, 0)],
-            [new ClusterSummary("hub1", "Hub Note", 3)]);
+            [new ClusterSummary("hub1", "Hub Note", 3)],
+            Array.Empty<DuplicatePair>());
 
         public Task<KbHealthOverview> GetOverviewAsync() => Task.FromResult(Overview);
         public Task<IReadOnlyList<ConnectionSuggestion>> GetConnectionSuggestionsAsync(string noteId, int limit = 5)

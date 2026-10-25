@@ -125,6 +125,18 @@ noise band* (e.g. 0.70 for a true sibling note vs ≤0.24 for noise). Fixes:
 4. **Config key typo fixed** — `KbHealthService` read `Search:_suggestionThreshold`
    (leading underscore), so the configured `SuggestionThreshold` was silently
    ignored and only the code default ever applied.
+5. **Mutual k-NN cluster edges** — one-directional top-5 semantic edges merged
+   315 of 379 notes into one mega-cluster. An edge now counts only if each note
+   appears in the other's five nearest neighbours; wiki-links still cluster as
+   before. The scorecard reports `averageWikiLinks` and `averageSemanticLinks`
+   separately so each number is meaningful.
+6. **Orphans = wiki-link graph only** — semantic similarity is an insight, not
+   a connection; a recent note nobody links to is an orphan even if it sits
+   near existing content.
+7. **Duplicate detection** — note pairs with cosine similarity above
+   `Search:DuplicateThreshold` (default 0.95) are surfaced in the KB health
+   overview for manual merge review (found one real duplicate Telegram pair
+   at 0.95+ this way).
 
 After deploying, re-embed once so existing thin notes are marked `Skipped` and
 their stale embeddings cleared (`POST /api/notes/re-embed`).

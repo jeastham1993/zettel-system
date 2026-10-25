@@ -223,9 +223,10 @@ public class KbHealthControllerTests
 
         public Task<KbHealthOverview> GetOverviewAsync() =>
             Task.FromResult(new KbHealthOverview(
-                new KbHealthScorecard(0, 0, 0, 0),
+                new KbHealthScorecard(0, 0, 0, 0, 0, 0),
                 Array.Empty<UnconnectedNote>(),
-                Array.Empty<ClusterSummary>()));
+                Array.Empty<ClusterSummary>(),
+                Array.Empty<DuplicatePair>()));
 
         public Task<IReadOnlyList<ConnectionSuggestion>> GetConnectionSuggestionsAsync(
             string noteId, int limit = 5) =>

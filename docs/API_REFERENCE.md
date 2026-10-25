@@ -179,7 +179,7 @@ Bulk import markdown files.
 ## KB Health
 
 ### `GET /api/kb-health/overview`
-Full knowledge base health overview: scorecard metrics, recent orphans, and richest clusters.
+Full knowledge base health overview: scorecard metrics, recent orphans, richest clusters, and likely duplicates.
 
 **Response:** `200 OK`
 ```json
@@ -188,7 +188,9 @@ Full knowledge base health overview: scorecard metrics, recent orphans, and rich
     "totalNotes": 342,
     "embeddedPercent": 87,
     "orphanCount": 23,
-    "averageConnections": 4.2
+    "averageConnections": 4.2,
+    "averageWikiLinks": 1.4,
+    "averageSemanticLinks": 2.8
   },
   "newAndUnconnected": [
     {
@@ -204,18 +206,34 @@ Full knowledge base health overview: scorecard metrics, recent orphans, and rich
       "hubTitle": "string",
       "noteCount": 42
     }
+  ],
+  "duplicates": [
+    {
+      "firstNoteId": "string",
+      "firstTitle": "string",
+      "secondNoteId": "string",
+      "secondTitle": "string",
+      "similarity": 0.98
+    }
   ]
 }
 ```
 
 Notes:
-- `newAndUnconnected` — permanent notes added in the last 30 days with zero connections, newest first.
-- `richestClusters` — top 5 connected components by note count (minimum 2 notes). Hub is the most-connected note in the component.
+- `newAndUnconnected` — permanent notes added in the last 30 days with zero
+  **wiki-link** connections, newest first. Semantic similarity is an insight,
+  not a connection — a note nobody links to is still an orphan.
+- `richestClusters` — top 5 connected components by note count (minimum 2
+  notes). Edges are wiki-links **plus mutual top-5 semantic neighbours**
+  (an edge counts only if each note is in the other's five nearest). Hub is
+  the most-connected note in the component.
+- `duplicates` — permanent note pairs with cosine similarity above
+  `Search:DuplicateThreshold` (default 0.95); candidates for manual merge.
 
 ---
 
 ### `GET /api/kb-health/orphan/{id}/suggestions`
-Top semantically similar notes for a given orphan note. Powered by pgvector cosine similarity at threshold 0.6.
+Top semantically similar notes for a given orphan note. Powered by pgvector cosine similarity above `Search:SuggestionThreshold` (default 0.3).
 
 **Query params:** `limit` (default 5)
 

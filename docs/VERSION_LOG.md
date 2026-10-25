@@ -17,6 +17,17 @@ Last Updated: 2026-10-25
   key (`Search:_suggestionThreshold`), silently ignoring the configured
   value (BUG-010).
 - Health check now reports a `skipped` embedding count.
+- KB health clusters now use **mutual top-5 k-NN** semantic edges (an edge
+  counts only if each note is in the other's five nearest neighbours) in
+  addition to wiki-links. One-directional edges on Titan's compressed score
+  distribution had merged 315 of 379 notes into a single mega-cluster.
+- Scorecard now breaks connectivity down: `averageWikiLinks` and
+  `averageSemanticLinks` alongside the combined `averageConnections`.
+- Orphan detection now counts only **wiki-link** connections — semantic
+  similarity is an insight, not a connection.
+- New duplicate detection: permanent note pairs with cosine similarity above
+  `Search:DuplicateThreshold` (default 0.95) are listed in the overview
+  (`duplicates`) and on the Knowledge Health page for manual merge review.
 
 ### Migration note
 Run `POST /api/notes/re-embed` once after deploying so existing thin

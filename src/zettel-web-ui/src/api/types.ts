@@ -205,6 +205,8 @@ export interface KbHealthScorecard {
   embeddedPercent: number
   orphanCount: number
   averageConnections: number
+  averageWikiLinks: number
+  averageSemanticLinks: number
 }
 
 export interface UnconnectedNote {
@@ -220,10 +222,19 @@ export interface ClusterSummary {
   noteCount: number
 }
 
+export interface DuplicatePair {
+  firstNoteId: string
+  firstTitle: string
+  secondNoteId: string
+  secondTitle: string
+  similarity: number
+}
+
 export interface KbHealthOverview {
   scorecard: KbHealthScorecard
   newAndUnconnected: UnconnectedNote[]
   richestClusters: ClusterSummary[]
+  duplicates: DuplicatePair[]
 }
 
 export interface ConnectionSuggestion {

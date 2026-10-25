@@ -21,6 +21,7 @@ public class KbHealthService : IKbHealthService
     private readonly int _largeNoteThreshold;
     private readonly int _summarizeTargetLength;
     private readonly double _suggestionThreshold;
+    private readonly double _duplicateThreshold;
 
     public KbHealthService(
         ZettelDbContext db,
@@ -37,6 +38,9 @@ public class KbHealthService : IKbHealthService
         // (e.g. Titan Embeddings). Raise toward 0.6 if nomic-embed-text is in use.
         // Key must match appsettings "Search:SuggestionThreshold" (INFRA-004).
         _suggestionThreshold = configuration.GetValue("Search:SuggestionThreshold", 0.3);
+        // Near-identical embeddings (cosine above this) are flagged as likely
+        // duplicates in the KB health overview.
+        _duplicateThreshold = configuration.GetValue("Search:DuplicateThreshold", 0.95);
     }
 
     public async Task<KbHealthOverview> GetOverviewAsync()
@@ -56,9 +60,10 @@ public class KbHealthService : IKbHealthService
             sw.Stop();
             ZettelTelemetry.KbHealthOverviewDuration.Record(sw.Elapsed.TotalMilliseconds);
             return new KbHealthOverview(
-                new KbHealthScorecard(0, 0, 0, 0),
+                new KbHealthScorecard(0, 0, 0, 0, 0, 0),
                 Array.Empty<UnconnectedNote>(),
-                Array.Empty<ClusterSummary>());
+                Array.Empty<ClusterSummary>(),
+                Array.Empty<DuplicatePair>());
         }
 
         var idToTitle = notes.ToDictionary(n => n.Id, n => n.Title);
@@ -68,24 +73,29 @@ public class KbHealthService : IKbHealthService
             titleToId.TryAdd(n.Title, n.Id);
 
         // Build undirected adjacency from wiki-links
-        var adjacency = notes.ToDictionary(n => n.Id, _ => new HashSet<string>());
+        var wikiAdjacency = notes.ToDictionary(n => n.Id, _ => new HashSet<string>());
         foreach (var note in notes)
         {
             foreach (var linkedTitle in WikiLinkParser.ExtractLinkedTitles(note.Content))
             {
                 if (titleToId.TryGetValue(linkedTitle, out var targetId) && targetId != note.Id
-                    && adjacency.ContainsKey(targetId))
+                    && wikiAdjacency.ContainsKey(targetId))
                 {
-                    adjacency[note.Id].Add(targetId);
-                    adjacency[targetId].Add(note.Id);
+                    wikiAdjacency[note.Id].Add(targetId);
+                    wikiAdjacency[targetId].Add(note.Id);
                 }
             }
         }
 
-        // Add semantic edges (pgvector) — skipped gracefully on InMemory
+        // Semantic edges (pgvector): mutual top-5 k-NN only — an edge counts
+        // only if each note appears in the other's five nearest neighbours.
+        // One-directional "A picked B" edges are weak evidence on compressed-
+        // score models (Titan) and previously merged nearly the whole KB into a
+        // single mega-cluster. Skipped gracefully on InMemory.
+        var semanticAdjacency = notes.ToDictionary(n => n.Id, _ => new HashSet<string>());
         try
         {
-            var semanticEdges = await _db.Database
+            var directedEdges = await _db.Database
                 .SqlQuery<SemanticEdge>($"""
                     SELECT n1."Id" AS "SourceId",
                            n2."Id" AS "TargetId",
@@ -106,12 +116,18 @@ public class KbHealthService : IKbHealthService
                     """)
                 .ToListAsync();
 
-            foreach (var se in semanticEdges)
+            var directed = directedEdges
+                .Select(e => (e.SourceId, e.TargetId))
+                .ToHashSet();
+
+            foreach (var (sourceId, targetId) in directed)
             {
-                if (adjacency.ContainsKey(se.SourceId) && adjacency.ContainsKey(se.TargetId))
+                if (directed.Contains((targetId, sourceId))
+                    && semanticAdjacency.ContainsKey(sourceId)
+                    && semanticAdjacency.ContainsKey(targetId))
                 {
-                    adjacency[se.SourceId].Add(se.TargetId);
-                    adjacency[se.TargetId].Add(se.SourceId);
+                    semanticAdjacency[sourceId].Add(targetId);
+                    semanticAdjacency[targetId].Add(sourceId);
                 }
             }
         }
@@ -121,6 +137,45 @@ public class KbHealthService : IKbHealthService
                 "Semantic edge query skipped in health overview (likely InMemory provider)");
         }
 
+        // Duplicate detection (pgvector): near-identical embeddings above
+        // Search:DuplicateThreshold are surfaced for manual merge review.
+        IReadOnlyList<DuplicatePair> duplicates = Array.Empty<DuplicatePair>();
+        try
+        {
+            duplicates = await _db.Database
+                .SqlQuery<DuplicatePair>($"""
+                    SELECT n1."Id" AS "FirstNoteId",
+                           n1."Title" AS "FirstTitle",
+                           n2."Id" AS "SecondNoteId",
+                           n2."Title" AS "SecondTitle",
+                           (1 - (n1."Embedding"::vector <=> n2."Embedding"::vector))::float8 AS "Similarity"
+                    FROM "Notes" n1
+                    JOIN "Notes" n2 ON n1."Id" < n2."Id"
+                    WHERE n1."Embedding" IS NOT NULL
+                      AND n2."Embedding" IS NOT NULL
+                      AND n1."Status" = 'Permanent'
+                      AND n2."Status" = 'Permanent'
+                      AND (1 - (n1."Embedding"::vector <=> n2."Embedding"::vector)) > {_duplicateThreshold}
+                    ORDER BY "Similarity" DESC
+                    """)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Duplicate detection query skipped in health overview (likely InMemory provider)");
+        }
+
+        // Combined adjacency: wiki-links + mutual semantic edges
+        var adjacency = notes.ToDictionary(n => n.Id, _ => new HashSet<string>());
+        foreach (var id in adjacency.Keys)
+        {
+            adjacency[id].UnionWith(wikiAdjacency[id]);
+            adjacency[id].UnionWith(semanticAdjacency[id]);
+        }
+
+        var wikiCounts = wikiAdjacency.ToDictionary(kv => kv.Key, kv => kv.Value.Count);
+        var semanticCounts = semanticAdjacency.ToDictionary(kv => kv.Key, kv => kv.Value.Count);
         var edgeCounts = adjacency.ToDictionary(kv => kv.Key, kv => kv.Value.Count);
 
         // ── Scorecard ──────────────────────────────────────────────────────
@@ -128,11 +183,16 @@ public class KbHealthService : IKbHealthService
         var embeddedCount = notes.Count(n => n.EmbedStatus == EmbedStatus.Completed);
         var embeddedPercent = (int)Math.Round(embeddedCount * 100.0 / totalNotes);
         var avgConnections = Math.Round(edgeCounts.Values.Average(), 1);
+        var avgWikiLinks = Math.Round(wikiCounts.Values.Average(), 1);
+        var avgSemanticLinks = Math.Round(semanticCounts.Values.Average(), 1);
 
         // ── New & Unconnected (recent orphans) ─────────────────────────────
+        // Orphan = no wiki-link connections. Semantic similarity is an insight,
+        // not a connection: a note nobody links to is still an orphan even if
+        // it sits near existing content.
         var cutoff = DateTime.UtcNow.AddDays(-OrphanWindowDays);
         var orphans = notes
-            .Where(n => n.CreatedAt >= cutoff && edgeCounts.GetValueOrDefault(n.Id) == 0)
+            .Where(n => n.CreatedAt >= cutoff && wikiCounts.GetValueOrDefault(n.Id) == 0)
             .OrderByDescending(n => n.CreatedAt)
             .Select(n => new UnconnectedNote(
                 n.Id,
@@ -148,14 +208,17 @@ public class KbHealthService : IKbHealthService
         activity?.SetTag("kb_health.note_count", totalNotes);
         activity?.SetTag("kb_health.orphan_count", orphans.Count);
         activity?.SetTag("kb_health.embedded_percent", embeddedPercent);
+        activity?.SetTag("kb_health.duplicate_count", duplicates.Count);
         _logger.LogInformation(
-            "KB health overview: {NoteCount} notes, {OrphanCount} orphans, {EmbeddedPercent}% embedded",
-            totalNotes, orphans.Count, embeddedPercent);
+            "KB health overview: {NoteCount} notes, {OrphanCount} orphans, {EmbeddedPercent}% embedded, {DuplicateCount} duplicate pairs",
+            totalNotes, orphans.Count, embeddedPercent, duplicates.Count);
 
         return new KbHealthOverview(
-            new KbHealthScorecard(totalNotes, embeddedPercent, orphans.Count, avgConnections),
+            new KbHealthScorecard(
+                totalNotes, embeddedPercent, orphans.Count, avgConnections, avgWikiLinks, avgSemanticLinks),
             orphans,
-            clusters);
+            clusters,
+            duplicates);
     }
 
     public async Task<IReadOnlyList<ConnectionSuggestion>> GetConnectionSuggestionsAsync(
