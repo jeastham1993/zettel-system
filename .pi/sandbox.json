@@ -1,0 +1,10 @@
+{
+  "network": {
+    "allowedDomains": [
+      "docs.baseten.co",
+      "zettel.home.jameseastham.co.uk",
+      "raw.githubusercontent.com",
+      "learn.microsoft.com"
+    ]
+  }
+}

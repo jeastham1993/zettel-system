@@ -27,6 +27,7 @@ public class DatabaseHealthCheck : IHealthCheck
         var embedded = counts.FirstOrDefault(c => c.Status == EmbedStatus.Completed)?.Count ?? 0;
         var pending = counts.FirstOrDefault(c => c.Status == EmbedStatus.Pending)?.Count ?? 0;
         var failed = counts.FirstOrDefault(c => c.Status == EmbedStatus.Failed)?.Count ?? 0;
+        var skipped = counts.FirstOrDefault(c => c.Status == EmbedStatus.Skipped)?.Count ?? 0;
 
         var data = new Dictionary<string, object>
         {
@@ -34,10 +35,11 @@ public class DatabaseHealthCheck : IHealthCheck
             ["embedded"] = embedded,
             ["pending"] = pending,
             ["failed"] = failed,
+            ["skipped"] = skipped,
         };
 
         return HealthCheckResult.Healthy(
-            $"{totalNotes} notes ({embedded} embedded, {pending} pending, {failed} failed)",
+            $"{totalNotes} notes ({embedded} embedded, {pending} pending, {failed} failed, {skipped} skipped)",
             data);
     }
 }

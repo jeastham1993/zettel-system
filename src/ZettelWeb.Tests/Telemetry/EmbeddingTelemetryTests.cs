@@ -56,6 +56,7 @@ public class EmbeddingTelemetryTests : IDisposable
             {
                 ["Embedding:MaxInputCharacters"] = "4000",
                 ["Embedding:MaxRetries"] = "3",
+                ["Embedding:MinContentCharacters"] = "0", // test fixture content is short
             })
             .Build();
 

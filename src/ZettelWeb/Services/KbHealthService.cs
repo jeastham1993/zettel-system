@@ -35,7 +35,8 @@ public class KbHealthService : IKbHealthService
         _summarizeTargetLength = (int)(_largeNoteThreshold * 0.8);
         // Default 0.3: works across embedding models with compressed score distributions
         // (e.g. Titan Embeddings). Raise toward 0.6 if nomic-embed-text is in use.
-        _suggestionThreshold = configuration.GetValue("Search:_suggestionThreshold", 0.3);
+        // Key must match appsettings "Search:SuggestionThreshold" (INFRA-004).
+        _suggestionThreshold = configuration.GetValue("Search:SuggestionThreshold", 0.3);
     }
 
     public async Task<KbHealthOverview> GetOverviewAsync()

@@ -23,13 +23,16 @@ public class EmbeddingBackgroundServiceTests
         return services.BuildServiceProvider();
     }
 
-    private static IConfiguration BuildConfig(int? maxInputChars = null, int? maxRetries = null)
+    private static IConfiguration BuildConfig(int? maxInputChars = null, int? maxRetries = null, int? minContentChars = null)
     {
         var dict = new Dictionary<string, string?>();
         if (maxInputChars.HasValue)
             dict["Embedding:MaxInputCharacters"] = maxInputChars.Value.ToString();
         if (maxRetries.HasValue)
             dict["Embedding:MaxRetries"] = maxRetries.Value.ToString();
+        // Tests mostly use short fixture content; keep the thin-content skip
+        // off unless a test passes an explicit threshold.
+        dict["Embedding:MinContentCharacters"] = (minContentChars ?? 0).ToString();
         return new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
     }
 
@@ -355,6 +358,88 @@ public class EmbeddingBackgroundServiceTests
         await service.ProcessNoteAsync("20260213120000", CancellationToken.None);
 
         Assert.Equal(100, generator.LastInput!.Length);
+    }
+
+    [Fact]
+    public async Task ProcessNoteAsync_SkipsNotesWithTooLittleContent()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var generator = new FakeEmbeddingGenerator(new float[] { 0.1f, 0.2f });
+        using var sp = BuildServiceProvider(dbName, generator);
+
+        var context = CreateContext(sp);
+        context.Notes.Add(new Note
+        {
+            Id = "20260213120000",
+            Title = "Empty Source Stub",
+            Content = "<p></p>",
+            EmbedStatus = EmbedStatus.Pending,
+        });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(sp, BuildConfig(minContentChars: 50));
+
+        await service.ProcessNoteAsync("20260213120000", CancellationToken.None);
+
+        var note = await FreshLoadAsync(sp, "20260213120000");
+        Assert.Equal(EmbedStatus.Skipped, note!.EmbedStatus);
+        Assert.Null(note.Embedding);
+        Assert.Equal(0, generator.CallCount);
+    }
+
+    [Fact]
+    public async Task ProcessNoteAsync_SkipClearsExistingStaleEmbedding()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var generator = new FakeEmbeddingGenerator(new float[] { 0.1f, 0.2f });
+        using var sp = BuildServiceProvider(dbName, generator);
+
+        var context = CreateContext(sp);
+        context.Notes.Add(new Note
+        {
+            Id = "20260213120000",
+            Title = "Emptied Note",
+            // Previously embedded; content has since been cleared
+            Content = "",
+            EmbedStatus = EmbedStatus.Stale,
+            Embedding = new float[] { 0.5f, 0.5f },
+        });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(sp, BuildConfig(minContentChars: 50));
+
+        await service.ProcessNoteAsync("20260213120000", CancellationToken.None);
+
+        var note = await FreshLoadAsync(sp, "20260213120000");
+        Assert.Equal(EmbedStatus.Skipped, note!.EmbedStatus);
+        Assert.Null(note.Embedding);
+    }
+
+    [Fact]
+    public async Task ProcessNoteAsync_EmbedsNotesMeetingMinimumContentLength()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var generator = new FakeEmbeddingGenerator(new float[] { 0.1f, 0.2f });
+        using var sp = BuildServiceProvider(dbName, generator);
+
+        var context = CreateContext(sp);
+        context.Notes.Add(new Note
+        {
+            Id = "20260213120000",
+            Title = "Note With Real Content",
+            Content = new string('x', 50),
+            EmbedStatus = EmbedStatus.Pending,
+        });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(sp, BuildConfig(minContentChars: 50));
+
+        await service.ProcessNoteAsync("20260213120000", CancellationToken.None);
+
+        var note = await FreshLoadAsync(sp, "20260213120000");
+        Assert.Equal(EmbedStatus.Completed, note!.EmbedStatus);
+        Assert.NotNull(note.Embedding);
+        Assert.Equal(1, generator.CallCount);
     }
 
 }

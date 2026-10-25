@@ -174,6 +174,10 @@ public class SearchService : ISearchService
         var sourceVector = new Vector(sourceNote.Embedding);
         var minSimilarity = _weights.MinimumSimilarity;
 
+        // Fetch a wider candidate pool than requested so the relative floor
+        // below has room to drop weak matches without under-filling the list.
+        var candidateCount = Math.Max(limit * 3, 15);
+
         var results = await _db.Database
             .SqlQuery<SearchResult>($"""
                 SELECT "Id" AS "NoteId",
@@ -185,14 +189,31 @@ public class SearchService : ISearchService
                        (1.0 - ("Embedding"::vector <=> {sourceVector}))::float8 AS "Rank"
                 FROM "Notes"
                 WHERE "Embedding" IS NOT NULL
+                  AND "Status" = 'Permanent'
                   AND "Id" != {noteId}
                   AND 1.0 - ("Embedding"::vector <=> {sourceVector}) >= {minSimilarity}
                 ORDER BY "Embedding"::vector <=> {sourceVector}
-                LIMIT {limit}
+                LIMIT {candidateCount}
                 """)
             .ToListAsync();
 
-        return results;
+        // Models with compressed score ranges (e.g. Titan) put weak matches
+        // and noise in the same absolute band, so gate results relative to the
+        // best match instead: keep only results within a configurable fraction
+        // of the top similarity. The absolute MinimumSimilarity floor above
+        // still applies to every candidate.
+        if (results.Count == 0)
+            return results;
+
+        var topRank = results[0].Rank;
+        if (topRank <= 0)
+            return results.Take(limit).ToList();
+
+        var cutoff = topRank * _weights.RelatedRelativeFloor;
+        return results
+            .Where(r => r.Rank >= cutoff)
+            .Take(limit)
+            .ToList();
     }
 
     public async Task<IReadOnlyList<SearchResult>> DiscoverAsync(

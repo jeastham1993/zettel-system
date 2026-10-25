@@ -101,3 +101,30 @@ relevance. When switching models, always recalibrate thresholds empirically.
 - [ ] Lower `Search:SuggestionThreshold` to match new model's range
 - [ ] Drop and recreate HNSW index at new dimensions (see INFRA-005)
 - [ ] Re-embed all existing notes (`POST /api/notes/re-embed` or Settings page button)
+
+## Update 2026-10-25: Absolute Thresholds Proved Insufficient for Titan
+
+Even with correctly calibrated thresholds (`MinimumSimilarity` 0.2,
+`SuggestionThreshold` 0.3), related-note results stayed hit-and-miss against
+Titan v2. Live analysis of 379 notes showed Titan's **score compression**:
+genuine matches and unrelated noise overlap in the same 0.2–0.45 absolute band,
+so no single global threshold can separate signal from noise.
+
+However, genuine matches still score dramatically higher *relative to the
+noise band* (e.g. 0.70 for a true sibling note vs ≤0.24 for noise). Fixes:
+
+1. **Relative gating** for related notes — new `Search:RelatedRelativeFloor`
+   (default 0.6): results scoring below 60% of the top match's similarity are
+   dropped. The absolute `MinimumSimilarity` floor still applies underneath.
+2. **`Status = 'Permanent'` filter** in `FindRelatedAsync` — fleeting
+   inbox/Telegram captures were polluting related results.
+3. **Thin-note skip** — notes with < `Embedding:MinContentCharacters` (default 50)
+   of stripped content get `EmbedStatus.Skipped`, a null embedding, and are
+   excluded from semantic queries. Title-only embeddings of empty Source
+   stubs were matching nothing/everything arbitrarily.
+4. **Config key typo fixed** — `KbHealthService` read `Search:_suggestionThreshold`
+   (leading underscore), so the configured `SuggestionThreshold` was silently
+   ignored and only the code default ever applied.
+
+After deploying, re-embed once so existing thin notes are marked `Skipped` and
+their stale embeddings cleared (`POST /api/notes/re-embed`).

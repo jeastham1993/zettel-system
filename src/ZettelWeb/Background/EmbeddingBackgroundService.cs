@@ -18,6 +18,7 @@ public partial class EmbeddingBackgroundService : BackgroundService
     private readonly ILogger<EmbeddingBackgroundService> _logger;
     private readonly int _maxInputCharacters;
     private readonly int _maxRetries;
+    private readonly int _minContentCharacters;
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
 
     [GeneratedRegex(@"<[^>]*>")]
@@ -38,6 +39,9 @@ public partial class EmbeddingBackgroundService : BackgroundService
         // nomic-embed-text default num_ctx is 2048 tokens; 4000 chars ≈ 1000-1300 tokens, safe ceiling
         _maxInputCharacters = configuration.GetValue("Embedding:MaxInputCharacters", 4_000);
         _maxRetries = configuration.GetValue("Embedding:MaxRetries", 3);
+        // Notes with less stripped content than this get title-only embeddings
+        // that pollute semantic matching — they are marked Skipped instead.
+        _minContentCharacters = configuration.GetValue("Embedding:MinContentCharacters", 50);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -150,6 +154,26 @@ public partial class EmbeddingBackgroundService : BackgroundService
             // Strip HTML tags from content to improve embedding quality
             var strippedContent = HtmlTagRegex().Replace(note.Content, " ");
             strippedContent = MultiWhitespaceRegex().Replace(strippedContent, " ").Trim();
+
+            if (strippedContent.Length < _minContentCharacters)
+            {
+                // Empty or near-empty notes (e.g. unedited Source stubs) produce
+                // title-only embeddings that pollute related-note matching. Skip
+                // them and clear any stale embedding so they are excluded from
+                // semantic queries (which filter on "Embedding" IS NOT NULL).
+                note.Embedding = null;
+                note.EmbedStatus = EmbedStatus.Skipped;
+                note.EmbedError = null;
+                note.EmbedUpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+
+                _logger.LogInformation(
+                    "Skipped embedding for note {NoteId}: content too short ({Length} < {MinLength} chars)",
+                    noteId, strippedContent.Length, _minContentCharacters);
+                activity?.SetTag("embedding.skipped", true);
+                return;
+            }
+
             var text = $"{note.Title}\n\n{strippedContent}";
             if (text.Length > _maxInputCharacters)
             {

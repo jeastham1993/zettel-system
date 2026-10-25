@@ -1,6 +1,6 @@
 # Bug Reference
 
-Last Updated: 2026-10-17 | v1.2.3
+Last Updated: 2026-10-25 | v1.2.4-dev
 
 
 ## BUG-001: Backend crash on startup — column "Status" does not exist
@@ -155,3 +155,57 @@ the number of braces used for interpolation. Mismatched `$` count vs
 brace count silently produces literal text, not an error. Grep new
 prompt templates for `{{` before shipping, and unit-test prompt
 construction against a fake LLM.
+
+---
+
+## BUG-009: Related notes hit-and-miss — noise and signal share an absolute score band on Titan
+
+**Date**: 2026-10-25
+**Severity**: Moderate (core KB feature unreliable)
+**Compound Doc**: [INFRA-004](compound/infrastructure/INFRA-004-embedding-similarity-thresholds-are-model-specific.md)
+
+**Symptom**: Related-note suggestions were hit-and-miss; obviously related
+notes sometimes ranked below unrelated noise; a "dawn of everything"
+Source stub with empty content never matched its obvious siblings.
+
+**Root Cause**: Titan v2 compresses weak matches and noise into the same
+absolute cosine band (~0.2–0.45) as genuine matches' lower edge, so the
+single absolute `Search:MinimumSimilarity` gate cannot separate them.
+Additionally: (a) `FindRelatedAsync` had no `Status` filter, so fleeting
+Telegram captures appeared in related lists; (b) notes with empty content
+got title-only embeddings that match arbitrarily.
+
+**Fix**: `FindRelatedAsync` now fetches a wider candidate pool, applies
+the absolute floor, then drops results below `Search:RelatedRelativeFloor`
+(default 0.6) × top match's similarity; adds `Status = 'Permanent'` filter;
+`EmbeddingBackgroundService` marks notes with < `Embedding:MinContentCharacters`
+(default 50) of stripped content as `EmbedStatus.Skipped` with a null
+embedding. After deploying, run `POST /api/notes/re-embed` once so existing
+thin notes get their stale embeddings cleared.
+
+**Prevention**: Gate similarity results relative to the top match when the
+model's score distribution is compressed; never embed title-only stubs.
+
+---
+
+## BUG-010: `Search:_suggestionThreshold` config key typo silently ignored the setting
+
+**Date**: 2026-10-25
+**Severity**: Low (default coincided with intended value)
+
+**Symptom**: Changing `Search:SuggestionThreshold` in config had no effect
+on KB health semantic edges.
+
+**Root Cause**: `KbHealthService` read the key with a leading underscore
+(`Search:_suggestionThreshold`), which never matched the documented
+`Search:SuggestionThreshold` in `appsettings.json`, so only the code
+default (0.3) ever applied. It worked by coincidence — the default matched
+the intended Titan value.
+
+**Fix**: Key corrected to `Search:SuggestionThreshold`.
+
+**Prevention**: When binding `GetValue<string, T>("Section:Key", ...)` by
+hand, copy the key from `appsettings.json` literally, or bind an options
+class instead (typos in options binding throw or show up in startup
+diagnostics). Consider a startup assertion that every documented config key
+is present in configuration.

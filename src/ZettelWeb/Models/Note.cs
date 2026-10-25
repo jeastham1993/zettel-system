@@ -14,7 +14,9 @@ public enum EmbedStatus
     /// <summary>Embedding generation failed after retries.</summary>
     Failed,
     /// <summary>Content changed since last embedding; needs re-processing.</summary>
-    Stale
+    Stale,
+    /// <summary>Content too short for a meaningful embedding; excluded from semantic matching.</summary>
+    Skipped
 }
 
 /// <summary>Whether a note is permanent or a fleeting inbox capture.</summary>

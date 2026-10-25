@@ -66,4 +66,23 @@ public class DatabaseHealthCheckTests
         Assert.Equal(1, result.Data["pending"]);
         Assert.Equal(1, result.Data["failed"]);
     }
+
+    [Fact]
+    public async Task CheckHealthAsync_ReportsSkippedEmbeddings()
+    {
+        await using var db = CreateDbContext();
+        db.Notes.AddRange(
+            new Note { Id = "20260213120001", Title = "A", Content = "C", EmbedStatus = EmbedStatus.Completed },
+            new Note { Id = "20260213120002", Title = "B", Content = "<p></p>", EmbedStatus = EmbedStatus.Skipped });
+        await db.SaveChangesAsync();
+        var check = new DatabaseHealthCheck(db);
+
+        var result = await check.CheckHealthAsync(
+            new HealthCheckContext());
+
+        Assert.Equal(2, result.Data["total_notes"]);
+        Assert.Equal(1, result.Data["embedded"]);
+        Assert.Equal(1, result.Data["skipped"]);
+        Assert.Contains("1 skipped", result.Description);
+    }
 }

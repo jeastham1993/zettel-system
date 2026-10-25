@@ -602,6 +602,74 @@ public class SearchServiceIntegrationTests : IAsyncLifetime
         Assert.Empty(results);
     }
 
+    [Fact]
+    public async Task FindRelatedAsync_DropsResultsBelowRelativeFloorOfTopMatch()
+    {
+        await using var context = CreateDbContext();
+        await ClearNotesAsync(context);
+        context.Notes.AddRange(
+            new Note
+            {
+                Id = "source", Title = "Source", Content = "C",
+                EmbedStatus = EmbedStatus.Completed,
+                Embedding = new float[] { 1.0f, 0.0f },
+            },
+            new Note
+            {
+                // Similarity ≈ 0.999 — the top match
+                Id = "strong", Title = "Strong", Content = "C",
+                EmbedStatus = EmbedStatus.Completed,
+                Embedding = new float[] { 0.95f, 0.05f },
+            },
+            new Note
+            {
+                // Similarity ≈ 0.55 — above the absolute floor but below
+                // 0.6 × top match, so it should be dropped
+                Id = "weak", Title = "Weak", Content = "C",
+                EmbedStatus = EmbedStatus.Completed,
+                Embedding = new float[] { 0.55f, 0.835f },
+            });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, CreateFakeGenerator());
+
+        var results = await service.FindRelatedAsync("source");
+
+        var strong = Assert.Single(results);
+        Assert.Equal("strong", strong.NoteId);
+    }
+
+    [Fact]
+    public async Task FindRelatedAsync_ExcludesNonPermanentNotes()
+    {
+        await using var context = CreateDbContext();
+        await ClearNotesAsync(context);
+        context.Notes.AddRange(
+            new Note
+            {
+                Id = "source", Title = "Source", Content = "C",
+                Status = NoteStatus.Permanent,
+                EmbedStatus = EmbedStatus.Completed,
+                Embedding = new float[] { 1.0f, 0.0f },
+            },
+            new Note
+            {
+                // Highly similar, but a fleeting inbox capture — must not
+                // appear in related notes
+                Id = "fleeting", Title = "Fleeting", Content = "C",
+                Status = NoteStatus.Fleeting,
+                EmbedStatus = EmbedStatus.Completed,
+                Embedding = new float[] { 0.98f, 0.02f },
+            });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, CreateFakeGenerator());
+
+        var results = await service.FindRelatedAsync("source");
+
+        Assert.Empty(results);
+    }
+
     // ── Discover Tests ──────────────────────────────────────
 
     [Fact]

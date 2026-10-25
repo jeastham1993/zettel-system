@@ -83,6 +83,12 @@ Merge a fleeting note into an existing permanent note.
 
 ### `GET /api/notes/{id}/related`
 Find semantically related notes using pgvector cosine similarity.
+Permanent notes only; candidates must clear `Search:MinimumSimilarity`,
+and results below `Search:RelatedRelativeFloor` (default 0.6) × the top
+match's similarity are dropped as noise (see BUG-009 / INFRA-004).
+Notes with less than `Embedding:MinContentCharacters` (default 50) of
+content are never returned — they are marked `Skipped` and carry no
+embedding.
 
 ### `GET /api/notes/{id}/backlinks`
 Find notes that link to this note via `[[Title]]` wikilinks.

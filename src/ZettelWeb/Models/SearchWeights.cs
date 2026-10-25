@@ -11,4 +11,9 @@ public class SearchWeights
     public double MinimumSimilarity { get; set; } = 0.5;
     /// <summary>Minimum combined score for hybrid results. Default: 0.1.</summary>
     public double MinimumHybridScore { get; set; } = 0.1;
+    /// <summary>Related-note results scoring below this fraction of the best
+    /// match's similarity are dropped. Absolute thresholds cannot separate weak
+    /// matches from noise on models with compressed score ranges (e.g. Titan),
+    /// so related notes are gated relative to the top result. Default: 0.6.</summary>
+    public double RelatedRelativeFloor { get; set; } = 0.6;
 }

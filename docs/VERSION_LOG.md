@@ -1,6 +1,26 @@
 # Version Log
 
-Last Updated: 2026-10-17
+Last Updated: 2026-10-25
+
+## Unreleased - 2026-10-25
+
+### Fixed
+- Related-note matching was hit-and-miss on Titan embeddings: noise and
+  genuine matches share an absolute similarity band, so results are now
+  gated relative to the top match (`Search:RelatedRelativeFloor`, default
+  0.6) in addition to the absolute `MinimumSimilarity` floor (BUG-009).
+- Related notes now exclude non-Permanent (e.g. Telegram inbox) notes.
+- Empty or near-empty notes (< `Embedding:MinContentCharacters`, default 50)
+  are no longer embedded — they get the new `EmbedStatus.Skipped` state and
+  a null embedding so they drop out of semantic matching.
+- `KbHealthService` read `Search:SuggestionThreshold` under a misspelled
+  key (`Search:_suggestionThreshold`), silently ignoring the configured
+  value (BUG-010).
+- Health check now reports a `skipped` embedding count.
+
+### Migration note
+Run `POST /api/notes/re-embed` once after deploying so existing thin
+notes are marked `Skipped` and their stale embeddings cleared.
 
 ## 1.2.3 - 2026-10-17
 

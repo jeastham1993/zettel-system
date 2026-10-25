@@ -28,6 +28,8 @@ public class EmbeddingHtmlStrippingTests
         var dict = new Dictionary<string, string?>();
         if (maxInputChars.HasValue)
             dict["Embedding:MaxInputCharacters"] = maxInputChars.Value.ToString();
+        // Tests use short fixture content; keep the thin-content skip off
+        dict["Embedding:MinContentCharacters"] = "0";
         return new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
     }
 
