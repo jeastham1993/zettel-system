@@ -12,7 +12,7 @@ public class CohereBedrockEmbeddingGeneratorTests
     private sealed class FakeBedrock
     {
         public InvokeModelRequest? Captured;
-        public string ResponseBody { get; set; } = """{"embeddings":{"float":[[0.1,0.2]]}}""";
+        public string ResponseBody { get; set; } = """{"id":"x","embeddings":[[0.1,0.2]],"response_type":"embeddings_floats"}""";
 
         public CohereBedrockEmbeddingGenerator Build(int? dimensions = 1024) =>
             new((req, _) =>
@@ -50,7 +50,10 @@ public class CohereBedrockEmbeddingGeneratorTests
         Assert.Equal("some note text", root.GetProperty("texts")[0].GetString());
         Assert.Equal("search_document", root.GetProperty("input_type").GetString());
         Assert.Equal("float", root.GetProperty("embedding_types")[0].GetString());
-        Assert.Equal(1024, root.GetProperty("dimensions").GetInt32());
+        // embed-v4 field is output_dimension, NOT "dimensions" — an unknown
+        // field makes Bedrock reject the whole request as malformed
+        Assert.Equal(1024, root.GetProperty("output_dimension").GetInt32());
+        Assert.False(root.TryGetProperty("dimensions", out _));
     }
 
     [Fact]
@@ -58,7 +61,9 @@ public class CohereBedrockEmbeddingGeneratorTests
     {
         var bedrock = new FakeBedrock
         {
-            ResponseBody = """{"embeddings":{"float":[[0.25,-0.75],[1.0,0.5]]}}""",
+            // embed-v4 single-type response: flat array under "embeddings",
+            // not the v3 nested {"float": [...]} object
+            ResponseBody = """{"id":"x","embeddings":[[0.25,-0.75],[1.0,0.5]],"response_type":"embeddings_floats"}""",
         };
         var generator = bedrock.Build();
 
@@ -95,6 +100,7 @@ public class CohereBedrockEmbeddingGeneratorTests
         await generator.GenerateAsync(["some note text"]);
 
         var body = await bedrock.RequestBodyAsync();
+        Assert.False(body.RootElement.TryGetProperty("output_dimension", out _));
         Assert.False(body.RootElement.TryGetProperty("dimensions", out _));
     }
 }

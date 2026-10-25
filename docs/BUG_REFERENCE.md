@@ -1,6 +1,6 @@
 # Bug Reference
 
-Last Updated: 2026-10-25 | v1.2.4-dev
+Last Updated: 2026-10-25 | v1.2.5-dev
 
 
 ## BUG-001: Backend crash on startup — column "Status" does not exist
@@ -209,3 +209,36 @@ hand, copy the key from `appsettings.json` literally, or bind an options
 class instead (typos in options binding throw or show up in startup
 diagnostics). Consider a startup assertion that every documented config key
 is present in configuration.
+
+---
+
+## BUG-011: Cohere embed-v4 Bedrock request rejected as malformed
+
+**Date**: 2026-10-25
+**Severity**: High (blocked the Cohere provider switch — every embed failed)
+
+**Symptom**: After switching `Embedding:Model` to the Cohere embed-v4
+inference-profile ARN, `EmbeddingBackgroundService` failed every note with
+`Amazon.BedrockRuntime.Model.ValidationException: Malformed request. Please
+check your parameter/values and try again.`
+
+**Root Cause**: `CohereBedrockEmbeddingGenerator` was written against the
+embed-v3 Bedrock schema. Two mismatches against the v4 schema:
+1. The request sent `dimensions` (a v3-era field name that does not exist on
+   v4). Bedrock rejects the whole request as malformed on any unknown field.
+   The v4 field is `output_dimension` (allowed 256/512/1024/1536, default
+   1536).
+2. The response parser read the v3 nested shape
+   (`embeddings: { float: [[...]] }`). v4 with a single embedding type
+   returns a flat array under `embeddings`
+   (`response_type: embeddings_floats`) — this would have thrown after the
+   first successful call even if (1) hadn't blocked it.
+
+**Fix**: Request now sends `output_dimension`; response parsing handles the
+v4 flat array. Tests assert the v4 schema exactly (including that
+`dimensions` is absent) and use the v4 response shape.
+
+**Prevention**: Verify the InvokeModel request/response schema against the
+AWS docs page for the exact model **version**, not the model family —
+Bedrock model providers make breaking body-schema changes between versions,
+and unknown request fields are rejected wholesale rather than ignored.

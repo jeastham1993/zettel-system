@@ -70,9 +70,11 @@ public sealed class CohereBedrockEmbeddingGenerator : IEmbeddingGenerator<string
 
             var response = await _invoke(request, cancellationToken);
             using var doc = JsonDocument.Parse(response.Body);
-            var floats = doc.RootElement
-                .GetProperty("embeddings")
-                .GetProperty("float");
+            // embed-v4: with a single embedding_types entry ("float"), the
+            // response is a flat array-of-arrays under "embeddings"
+            // (response_type: embeddings_floats) — NOT the v3 nested
+            // embeddings.float object.
+            var floats = doc.RootElement.GetProperty("embeddings");
 
             foreach (var vector in floats.EnumerateArray())
             {
@@ -114,7 +116,9 @@ public sealed class CohereBedrockEmbeddingGenerator : IEmbeddingGenerator<string
         [JsonPropertyName("embedding_types")]
         public IReadOnlyList<string> EmbeddingTypes { get; } = ["float"];
 
-        [JsonPropertyName("dimensions")]
+        // embed-v4 field name is output_dimension (allowed 256/512/1024/1536,
+        // default 1536) — NOT the v3-style "dimensions".
+        [JsonPropertyName("output_dimension")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public int? Dimensions { get; } = dimensions;
     }
