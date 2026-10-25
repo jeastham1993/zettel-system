@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Send, Plus, Archive, Trash2, RefreshCw, Loader2, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -299,7 +301,15 @@ export function ChatPage() {
                     <div
                       className={`max-w-[70%] p-3 rounded-lg ${message.role === 'User' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
                     >
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      {message.role === 'User' ? (
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                      ) : (
+                        <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none prose-pre:bg-background prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.content}
+                          </ReactMarkdown>
+                        </div>
+                      )}
                       {message.referenceNotes.length > 0 && (
                         <div className="mt-2 pt-2 border-t border-muted-foreground/20">
                           <p className="text-xs text-muted-foreground mb-1">References:</p>

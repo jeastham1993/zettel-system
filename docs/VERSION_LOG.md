@@ -12,6 +12,12 @@ Last Updated: 2026-10-25
   for embed-v4 while the AWS model-parameters page documents a flat array —
   the parser now accepts both response shapes and tests cover each.
 
+### Added
+- Chat assistant messages now render Markdown (react-markdown + remark-gfm,
+  Tailwind typography styling): headings, lists, tables, code blocks, and
+  emphasis from the chat LLM display properly instead of raw syntax. User
+  messages remain plain text.
+
 ### Changed
 - **Breaking config rename:** the chat LLM config section `ContentGeneration:*`
   is now `Chat:*` (the name was a leftover from the removed content-generation
