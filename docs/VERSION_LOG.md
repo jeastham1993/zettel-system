@@ -4,6 +4,14 @@ Last Updated: 2026-10-25
 
 ## Unreleased - 2026-10-25
 
+### Added
+- PWA support completed: the manifest previously pointed at icons that did
+  not exist, making the app un-installable. Added generated icon set
+  (192/512/maskable 512, apple-touch-icon, favicon), a maskable icon entry,
+  iOS web-app meta tags, and an offline navigation fallback for SPA routes
+  (API and health routes excluded). Service worker registration was already
+  wired via vite-plugin-pwa's autoUpdate mode.
+
 ### Fixed
 - Related-note matching was hit-and-miss on Titan embeddings: noise and
   genuine matches share an absolute similarity band, so results are now

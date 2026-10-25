@@ -28,10 +28,19 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
           },
+          {
+            src: '/pwa-512x512-maskable.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
         ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Serve the cached app shell for SPA routes when offline
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api\//, /^\/health/],
         skipWaiting: true,
         clientsClaim: true,
       },
