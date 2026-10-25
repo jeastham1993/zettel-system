@@ -3,7 +3,7 @@
   "info": {
     "title": "ZettelWeb API",
     "version": "v1",
-    "description": "A self-hosted Zettelkasten knowledge management API with semantic search, multi-method capture, and AI-powered note discovery.",
+    "description": "A self-hosted Zettelkasten knowledge management API with semantic search and AI-powered note discovery.",
     "license": {
       "name": "MIT"
     }
@@ -733,78 +733,6 @@
         }
       }
     },
-    "/api/capture/email": {
-      "post": {
-        "tags": ["Capture"],
-        "summary": "Receive an email webhook payload to capture as a fleeting note.",
-        "description": "Requires a valid X-Webhook-Secret header. Rate limited to 10 requests per minute.",
-        "operationId": "emailWebhook",
-        "parameters": [
-          {
-            "name": "X-Webhook-Secret",
-            "in": "header",
-            "required": true,
-            "description": "Webhook secret for authentication.",
-            "schema": { "type": "string" }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "description": "Raw email webhook payload (provider-specific)."
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Webhook received (always returns 200 regardless of validation outcome)."
-          },
-          "429": {
-            "description": "Rate limit exceeded (10 requests per minute)."
-          }
-        }
-      }
-    },
-    "/api/capture/telegram": {
-      "post": {
-        "tags": ["Capture"],
-        "summary": "Receive a Telegram webhook payload to capture as a fleeting note.",
-        "description": "Requires a valid X-Telegram-Bot-Api-Secret-Token header. Rate limited to 10 requests per minute.",
-        "operationId": "telegramWebhook",
-        "parameters": [
-          {
-            "name": "X-Telegram-Bot-Api-Secret-Token",
-            "in": "header",
-            "required": true,
-            "description": "Telegram bot secret token for authentication.",
-            "schema": { "type": "string" }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "description": "Raw Telegram Update object."
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Webhook received (always returns 200 regardless of validation outcome)."
-          },
-          "429": {
-            "description": "Rate limit exceeded (10 requests per minute)."
-          }
-        }
-      }
-    },
     "/health": {
       "get": {
         "tags": ["Health"],
@@ -1367,7 +1295,6 @@
     { "name": "Discovery", "description": "Discover forgotten, orphaned, or historically relevant notes." },
     { "name": "Import", "description": "Import notes from Notion-compatible markdown files." },
     { "name": "Export", "description": "Export all notes as a ZIP archive." },
-    { "name": "Capture", "description": "Webhook endpoints for capturing notes via email and Telegram." },
     { "name": "Health", "description": "Service health check." }
   ]
 }
