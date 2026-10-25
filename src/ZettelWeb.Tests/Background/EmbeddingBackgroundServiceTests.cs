@@ -10,6 +10,7 @@ using ZettelWeb.Tests.Fakes;
 
 namespace ZettelWeb.Tests.Background;
 
+[Collection("BackgroundActivityTests")]
 public class EmbeddingBackgroundServiceTests
 {
     private static ServiceProvider BuildServiceProvider(string dbName,

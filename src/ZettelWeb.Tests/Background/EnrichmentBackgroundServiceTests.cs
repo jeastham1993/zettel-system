@@ -12,6 +12,7 @@ using ZettelWeb.Services;
 
 namespace ZettelWeb.Tests.Background;
 
+[Collection("BackgroundActivityTests")]
 public class EnrichmentBackgroundServiceTests
 {
     private static ServiceProvider BuildServiceProvider(string dbName, FakeHttpMessageHandler? handler = null)

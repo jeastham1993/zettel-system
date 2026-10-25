@@ -13,6 +13,7 @@ using ZettelWeb.Tests.Fakes;
 
 namespace ZettelWeb.Tests.Telemetry;
 
+[Collection("BackgroundActivityTests")]
 public class EnrichmentTelemetryTests : IDisposable
 {
     private readonly ActivityListener _listener;
