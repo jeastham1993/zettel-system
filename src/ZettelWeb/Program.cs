@@ -179,18 +179,18 @@ builder.Services.AddHostedService<ResearchExecutionBackgroundService>();
 builder.Services.AddHostedService<EnrichmentBackgroundService>();
 
 // ── LLM chat client (IChatClient) — used by Chat, Research, and KB Health. ──
-// Note: config keys remain under the ContentGeneration: section for
-// backward compatibility with deployed environment configuration.
+// Configured via the Chat: section (renamed 2026-10-25 from the historical
+// ContentGeneration: section of the removed content-generation feature).
 // Providers: "ollama" (local, default — uses Ollama's OpenAI-compatible
 // endpoint; URL defaults to Embedding:OllamaUrl), "openai" (cloud,
-// requires ContentGeneration:ApiKey), or "bedrock" (uses ambient AWS
-// credentials; optional ContentGeneration:Region).
-var cgProvider = builder.Configuration["ContentGeneration:Provider"] ?? "ollama";
-var cgModel = builder.Configuration["ContentGeneration:Model"] ?? "llama3.1";
+// requires Chat:ApiKey), or "bedrock" (uses ambient AWS
+// credentials; optional Chat:Region).
+var cgProvider = builder.Configuration["Chat:Provider"] ?? "ollama";
+var cgModel = builder.Configuration["Chat:Model"] ?? "llama3.1";
 
 if (string.Equals(cgProvider, "bedrock", StringComparison.OrdinalIgnoreCase))
 {
-    var cgRegion = builder.Configuration["ContentGeneration:Region"];
+    var cgRegion = builder.Configuration["Chat:Region"];
     var bedrockChatClient = !string.IsNullOrEmpty(cgRegion)
         ? new AmazonBedrockRuntimeClient(Amazon.RegionEndpoint.GetBySystemName(cgRegion))
         : new AmazonBedrockRuntimeClient();
@@ -199,7 +199,7 @@ if (string.Equals(cgProvider, "bedrock", StringComparison.OrdinalIgnoreCase))
 else if (string.Equals(cgProvider, "ollama", StringComparison.OrdinalIgnoreCase))
 {
     var chatOllamaUrl =
-        (builder.Configuration["ContentGeneration:OllamaUrl"] is { Length: > 0 } cgOllamaUrl ? cgOllamaUrl : null)
+        (builder.Configuration["Chat:OllamaUrl"] is { Length: > 0 } cgOllamaUrl ? cgOllamaUrl : null)
         ?? (builder.Configuration["Embedding:OllamaUrl"] is { Length: > 0 } embOllamaUrl ? embOllamaUrl : null)
         ?? "http://localhost:11434";
     builder.Services.AddSingleton<IChatClient>(
@@ -210,13 +210,13 @@ else if (string.Equals(cgProvider, "ollama", StringComparison.OrdinalIgnoreCase)
 }
 else
 {
-    var cgApiKey = builder.Configuration["ContentGeneration:ApiKey"];
+    var cgApiKey = builder.Configuration["Chat:ApiKey"];
     if (string.IsNullOrWhiteSpace(cgApiKey))
     {
         throw new InvalidOperationException(
-            "ContentGeneration:ApiKey is required when the chat LLM provider is 'openai'. " +
-            "Set CONTENTGENERATION__APIKEY, or switch to the local Ollama provider with " +
-            "CONTENTGENERATION__PROVIDER=ollama (pull a chat model first, e.g. 'ollama pull llama3.1').");
+            "Chat:ApiKey is required when the chat LLM provider is 'openai'. " +
+            "Set CHAT__APIKEY, or switch to the local Ollama provider with " +
+            "CHAT__PROVIDER=ollama (pull a chat model first, e.g. 'ollama pull llama3.1').");
     }
     builder.Services.AddSingleton<IChatClient>(
         new OpenAIClient(cgApiKey).GetChatClient(cgModel).AsIChatClient());
@@ -242,6 +242,13 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Migration aid: the config section was renamed ContentGeneration → Chat.
+if (app.Configuration.GetSection("ContentGeneration").GetChildren().Any())
+{
+    app.Logger.LogWarning(
+        "Config section 'ContentGeneration' is set but was renamed to 'Chat' — rename CONTENTGENERATION__* environment variables to CHAT__*; the old keys are ignored");
+}
 
 // Apply pending EF migrations at startup, then ensure the HNSW index exists.
 {

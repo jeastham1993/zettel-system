@@ -116,5 +116,5 @@ The application uses two separate LLM integrations:
 | Chat / KB Health summaries | `IChatClient` | Bedrock, OpenAI |
 
 Both are configured independently in appsettings (`Embedding:*` and
-`ContentGeneration:*` sections respectively; the `ContentGeneration:*` keys
-now configure the shared chat LLM only).
+`Chat:*` sections respectively; `Chat:*` was renamed from the historical
+`ContentGeneration:*` keys of the removed content-generation feature).

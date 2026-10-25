@@ -4,6 +4,15 @@ Last Updated: 2026-10-25
 
 ## Unreleased - 2026-10-25
 
+### Changed
+- **Breaking config rename:** the chat LLM config section `ContentGeneration:*`
+  is now `Chat:*` (the name was a leftover from the removed content-generation
+  feature). Rename `CONTENTGENERATION__*` environment variables to `CHAT__*` —
+  e.g. `CHAT__PROVIDER`, `CHAT__MODEL`, `CHAT__REGION`, `CHAT__APIKEY`,
+  `CHAT__OLLAMA_URL`. Old keys are ignored; the app logs a startup warning if
+  it detects the old section still configured. No code bindings read
+  `ContentGeneration:*` anymore.
+
 ### Removed
 - `src/zettel-mobile/` — the React Native/Expo mobile app. The web UI is
   now an installable PWA, which covers mobile use. ADR-007 is retained as

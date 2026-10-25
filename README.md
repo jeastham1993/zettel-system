@@ -220,8 +220,9 @@ EMBEDDING_BEDROCK_REGION=eu-west-1
 
 The chat assistant, research agent, and KB Health summarization share
 a single chat/completion LLM, independent of the embedding provider.
-The config keys live under the `ContentGeneration` section (kept from
-the former content generation feature for backward compatibility).
+The config keys live under the `Chat` section (renamed 2026-10-25 from
+the historical `ContentGeneration` section of the removed content-generation
+feature — rename `CONTENTGENERATION__*` env vars to `CHAT__*`).
 
 #### Option A: Ollama (default)
 
@@ -254,11 +255,11 @@ CONTENTGENERATION__REGION=eu-west-1
 
 | Variable                        | Default              | Description                                |
 | ------------------------------- | -------------------- | ------------------------------------------ |
-| `ContentGeneration__Provider`   | `ollama`             | `ollama`, `openai`, or `bedrock`           |
-| `ContentGeneration__Model`       | `llama3.1`           | Model identifier                           |
-| `ContentGeneration__ApiKey`     | (empty)              | OpenAI API key — required for `openai`     |
-| `ContentGeneration__OllamaUrl`  | = `Embedding__OllamaUrl` | Ollama endpoint — `ollama` provider only |
-| `ContentGeneration__Region`     | (empty)              | AWS region — `bedrock` provider only      |
+| `Chat__Provider`   | `ollama`             | `ollama`, `openai`, or `bedrock`           |
+| `Chat__Model`       | `llama3.1`           | Model identifier                           |
+| `Chat__ApiKey`     | (empty)              | OpenAI API key — required for `openai`     |
+| `Chat__OllamaUrl`  | = `Embedding__OllamaUrl` | Ollama endpoint — `ollama` provider only |
+| `Chat__Region`     | (empty)              | AWS region — `bedrock` provider only      |
 
 ### Research Agent (optional)
 
@@ -282,7 +283,7 @@ UI for accept (→ fleeting note) or dismiss.
 | `Research__DeduplicationThreshold`   | `0.85`  | Cosine similarity threshold — results above this are skipped as near-duplicates of existing notes |
 
 The agent reuses the same LLM provider configuration (the
-`ContentGeneration` section keys) for agenda generation and synthesis.
+`Chat` section keys) for agenda generation and synthesis.
 No additional LLM configuration is needed.
 
 ### Optional: Observability
