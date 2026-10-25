@@ -70,11 +70,14 @@ public sealed class CohereBedrockEmbeddingGenerator : IEmbeddingGenerator<string
 
             var response = await _invoke(request, cancellationToken);
             using var doc = JsonDocument.Parse(response.Body);
-            // embed-v4: with a single embedding_types entry ("float"), the
-            // response is a flat array-of-arrays under "embeddings"
-            // (response_type: embeddings_floats) — NOT the v3 nested
-            // embeddings.float object.
-            var floats = doc.RootElement.GetProperty("embeddings");
+            // embed-v4 responses come in two shapes: a flat array-of-arrays
+            // under "embeddings" (per AWS docs, single embedding type) or
+            // nested by type under "embeddings.float" (as Cohere's v4 API
+            // and — confirmed live — Bedrock return). Handle both.
+            var embeddings = doc.RootElement.GetProperty("embeddings");
+            var floats = embeddings.ValueKind == JsonValueKind.Array
+                ? embeddings
+                : embeddings.GetProperty("float");
 
             foreach (var vector in floats.EnumerateArray())
             {

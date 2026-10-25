@@ -75,6 +75,24 @@ public class CohereBedrockEmbeddingGeneratorTests
     }
 
     [Fact]
+    public async Task GenerateAsync_ParsesNestedFloatVectors()
+    {
+        // The shape production Bedrock actually returns for embed-v4 with a
+        // single embedding type — embeddings nested by type (see BUG-011).
+        var bedrock = new FakeBedrock
+        {
+            ResponseBody = """{"id":"x","embeddings":{"float":[[0.25,-0.75],[1.0,0.5]]}}""",
+        };
+        var generator = bedrock.Build();
+
+        var result = await generator.GenerateAsync(["first", "second"]);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal([0.25f, -0.75f], result[0].Vector.ToArray());
+        Assert.Equal([1.0f, 0.5f], result[1].Vector.ToArray());
+    }
+
+    [Fact]
     public async Task GenerateAsync_UsesQueryInputTypeFromOptions()
     {
         var bedrock = new FakeBedrock();

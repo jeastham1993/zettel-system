@@ -234,9 +234,13 @@ embed-v3 Bedrock schema. Two mismatches against the v4 schema:
    (`response_type: embeddings_floats`) — this would have thrown after the
    first successful call even if (1) hadn't blocked it.
 
-**Fix**: Request now sends `output_dimension`; response parsing handles the
-v4 flat array. Tests assert the v4 schema exactly (including that
-`dimensions` is absent) and use the v4 response shape.
+**Fix**: Request now sends `output_dimension`; response parsing accepts
+BOTH v4 shapes. A second live failure after the request fix showed that
+production Bedrock actually returns the nested `embeddings.float` object for
+embed-v4, while the AWS model-parameters page documents a flat
+`embeddings` array for a single embedding type — the docs and the service
+disagree, so the parser checks `ValueKind` and handles both. Tests cover
+both shapes and assert `dimensions` is absent from the request.
 
 **Prevention**: Verify the InvokeModel request/response schema against the
 AWS docs page for the exact model **version**, not the model family —

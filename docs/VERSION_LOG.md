@@ -7,9 +7,10 @@ Last Updated: 2026-10-25
 ### Fixed
 - Cohere embed-v4 Bedrock requests were rejected as malformed (BUG-011): the
   generator sent the v3 field `dimensions` instead of v4's `output_dimension`,
-  and parsed the v3 nested `embeddings.float` response instead of v4's flat
-  array. Every embedding failed with `ValidationException: Malformed request`
-  after the provider switch; the auto-requeue loop marked all notes Failed.
+  so every embedding failed with `ValidationException: Malformed request`.
+  Follow-up: production Bedrock returns the nested `embeddings.float` object
+  for embed-v4 while the AWS model-parameters page documents a flat array —
+  the parser now accepts both response shapes and tests cover each.
 
 ### Changed
 - **Breaking config rename:** the chat LLM config section `ContentGeneration:*`
