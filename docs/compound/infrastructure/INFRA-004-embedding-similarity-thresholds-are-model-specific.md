@@ -31,6 +31,7 @@ produces a different absolute score distribution for the same content pairs:
 |---|---|
 | `nomic-embed-text` | ~0.6–0.9 |
 | `amazon.titan-embed-text-v2:0` | ~0.3–0.5 |
+| `cohere.embed-v4` (Bedrock) | ~0.5–0.8, noise < ~0.3 — the widest separation of the supported models |
 | `text-embedding-3-large` (OpenAI) | ~0.5–0.85 |
 
 The thresholds in this codebase were calibrated for nomic-embed-text. After switching
@@ -140,3 +141,15 @@ noise band* (e.g. 0.70 for a true sibling note vs ≤0.24 for noise). Fixes:
 
 After deploying, re-embed once so existing thin notes are marked `Skipped` and
 their stale embeddings cleared (`POST /api/notes/re-embed`).
+
+**Cohere embed on Bedrock (2026-10-25):** the bundled
+`AWSSDK.Extensions.Bedrock.MEAI` embedding adapter only speaks Titan's
+`inputText` request format — Cohere models (`cohere.embed-v4`, via
+cross-region inference-profile ARNs) need the dedicated
+`CohereBedrockEmbeddingGenerator`, which sends the correct payload
+(`texts`/`input_type`/`embedding_types`/`dimensions`) and tags queries as
+`search_query` vs stored notes as `search_document`. Cohere v4 defaults to
+1536 dimensions; the HNSW index now rebuilds itself at startup when
+`Embedding:Dimensions` changes, so a provider switch is: change config →
+restart → `POST /api/notes/re-embed`. Starting thresholds for Cohere:
+`Search:MinimumSimilarity` ~0.35, `Search:SuggestionThreshold` ~0.4.

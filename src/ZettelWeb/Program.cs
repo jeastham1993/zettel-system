@@ -142,8 +142,21 @@ else if (string.Equals(embeddingProvider, "bedrock", StringComparison.OrdinalIgn
         ? new AmazonBedrockRuntimeClient(Amazon.RegionEndpoint.GetBySystemName(bedrockRegion))
         : new AmazonBedrockRuntimeClient();
     var dimensions = builder.Configuration.GetValue<int?>("Embedding:Dimensions");
-    builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
-        bedrockClient.AsIEmbeddingGenerator(embeddingModel, dimensions));
+    if (embeddingModel.Contains("cohere", StringComparison.OrdinalIgnoreCase))
+    {
+        // The bundled MEAI Bedrock adapter only speaks Titan's request format;
+        // Cohere embed models need their own payload (see CohereBedrockEmbeddingGenerator).
+        builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
+            new CohereBedrockEmbeddingGenerator(
+                (req, ct) => bedrockClient.InvokeModelAsync(req, ct),
+                embeddingModel,
+                dimensions));
+    }
+    else
+    {
+        builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
+            bedrockClient.AsIEmbeddingGenerator(embeddingModel, dimensions));
+    }
 }
 else
 {
@@ -236,16 +249,7 @@ var app = builder.Build();
     var db = scope.ServiceProvider.GetRequiredService<ZettelDbContext>();
     db.Database.Migrate();
 
-    var dimensions = app.Configuration.GetValue<int>("Embedding:Dimensions");
-    if (dimensions > 0 && dimensions <= 4096)
-    {
-#pragma warning disable EF1003 // Intentional raw SQL for DDL
-        db.Database.ExecuteSqlRaw(
-            $"CREATE INDEX IF NOT EXISTS idx_notes_embedding_hnsw " +
-            $"ON \"Notes\" USING hnsw ((\"Embedding\"::vector({dimensions})) vector_cosine_ops) " +
-            $"WHERE \"Embedding\" IS NOT NULL;");
-#pragma warning restore EF1003
-    }
+    db.EnsureIndex(app.Configuration.GetValue<int>("Embedding:Dimensions"), app.Logger);
 }
 
 app.UseCors();

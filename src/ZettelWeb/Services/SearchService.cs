@@ -71,7 +71,12 @@ public class SearchService : ISearchService
         activity?.SetTag("search.query_length", query.Length);
         var sw = Stopwatch.StartNew();
 
-        var queryVector = await _embeddingGenerator.GenerateVectorAsync(query);
+        // Cohere embed models distinguish queries from stored documents
+        // (input_type) — passing search_query improves retrieval quality.
+        var queryVector = await _embeddingGenerator.GenerateVectorAsync(query, new EmbeddingGenerationOptions
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary { ["input_type"] = "search_query" }
+        });
         var queryParam = new Vector(queryVector.ToArray());
         var minSimilarity = _weights.MinimumSimilarity;
 

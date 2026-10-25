@@ -4,7 +4,26 @@ Last Updated: 2026-10-25
 
 ## Unreleased - 2026-10-25
 
+### Removed
+- `src/zettel-mobile/` — the React Native/Expo mobile app. The web UI is
+  now an installable PWA, which covers mobile use. ADR-007 is retained as
+  history (superseded).
+- Dead remnants of the voice assistant and Telegram/email webhook capture
+  (removed from the application in commit `6901ea9`): the orphaned `Capture`
+  config section in `appsettings.Development.json` and the stale
+  `/api/capture/email` + `/api/capture/telegram` paths in
+  `docs/openapi.json`.
+
 ### Added
+- Cohere embed model support on Bedrock (e.g. `cohere.embed-v4` via
+  cross-region inference-profile ARNs). The bundled
+  `AWSSDK.Extensions.Bedrock.MEAI` adapter only speaks Titan's request
+  format, so Cohere models get a dedicated generator with the correct
+  payload (`texts`/`input_type`/`embedding_types`/`dimensions`) — queries
+  are tagged `search_query`, stored documents `search_document`.
+- The HNSW index now rebuilds automatically at startup when
+  `Embedding:Dimensions` changes, fixing the provider-switch trap from
+  INFRA-005.
 - PWA support completed: the manifest previously pointed at icons that did
   not exist, making the app un-installable. Added generated icon set
   (192/512/maskable 512, apple-touch-icon, favicon), a maskable icon entry,
